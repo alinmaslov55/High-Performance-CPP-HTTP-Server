@@ -9,13 +9,13 @@ namespace http{
 ClientConnection::ClientConnection(Socket socket):
     socket_(std::move(socket)){}
 
-std::string ClientConnection::receive(){
-    char buffer[4096];
+bool ClientConnection::read(){
+    char temporary_buffer[8192];
 
     const ssize_t bytes_received = ::recv(
         socket_.fd(),
-        buffer,
-        sizeof(buffer),
+        temporary_buffer,
+        sizeof(temporary_buffer),
         0
     );
 
@@ -24,13 +24,15 @@ std::string ClientConnection::receive(){
     }
 
     if(bytes_received == 0){
-        return "";
+        return false;
     }
 
-    return std::string(
-        buffer,
+    readBuffer_.append(
+        temporary_buffer,
         static_cast<std::size_t>(bytes_received)
     );
+
+    return true;
 }
 
 void ClientConnection::send(const std::string& data){
@@ -52,6 +54,11 @@ void ClientConnection::send(const std::string& data){
         buffer += bytes_sent;
         bytes_remaining -= bytes_sent;
     }
+}
+
+std::string_view ClientConnection::data() const noexcept
+{
+    return readBuffer_.data();
 }
 
 } // namespace http

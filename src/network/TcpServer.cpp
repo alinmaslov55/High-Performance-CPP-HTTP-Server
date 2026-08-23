@@ -37,13 +37,11 @@ void TcpServer::start(){
 
         std::cout << "[INFO] Client Connected\n";
 
-        const std::string request = connection.receive();
-
-        if(request.empty()){
+        if(!connection.read()){
             continue;
         }
 
-        std::cout << "[INFO] Request: " << request << '\n';
+        std::cout << "[INFO] Request: " << connection.data() << '\n';
         
         connection.send(
             RESPONSE

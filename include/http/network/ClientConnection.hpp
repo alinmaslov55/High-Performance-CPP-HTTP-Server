@@ -3,8 +3,10 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 
 #include "http/network/Socket.hpp"
+#include "http/network/ReadBuffer.hpp"
 
 namespace http {
 
@@ -21,12 +23,15 @@ public:
     ~ClientConnection() = default;
 
     [[nodiscard]]
-    std::string receive();
+    bool read();
 
     void send(const std::string& data);
 
+    [[nodiscard]]
+    std::string_view data() const noexcept;
 private:
     Socket socket_;
+    ReadBuffer readBuffer_;
 };
 
 } // namespace http
