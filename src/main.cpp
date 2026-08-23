@@ -4,6 +4,14 @@
 #include <netinet/in.h>
 #include <unistd.h>
 
+
+const char RESPONSE[] = "HTTP/1.1 200 OK\r\n"
+    "Content-Type: text/plain\r\n"
+    "Content-Length: 12\r\n"
+    "Connection: close\r\n"
+    "\r\n"
+    "Hello World!";
+
 int main(){
     const int server_socket = socket(
         AF_INET, // IPv4 127.0.0.1
@@ -54,6 +62,46 @@ int main(){
     }
 
     std::cout << "[INFO] Client connected\n";
+
+    char buffer[4096];
+
+    const ssize_t bytes_received = recv(
+        client_socket,
+        buffer,
+        sizeof(buffer) - 1,
+        0
+    );
+
+    if(bytes_received == 0){
+        std::cout << "[INFO] Closed Connection from client\n";
+
+        close(client_socket);
+        close(server_socket);
+    }
+
+    if(bytes_received == -1){
+        std::cerr << "[ERROR] No data received\n";
+
+        close(client_socket);
+        close(server_socket);
+
+        return 1;
+    }
+
+    buffer[bytes_received] = '\0';
+
+    std::cout << "[INFO] HTTP Request: " << buffer << '\n';
+
+    const ssize_t bytes_sent = send(
+        client_socket,
+        RESPONSE,
+        sizeof(RESPONSE) - 1,
+        0
+    );
+
+    if(bytes_sent == -1){
+        std::cerr << "[ERROR] Sending RESPONSE FAILED\n";
+    }
 
     close(client_socket);
     close(server_socket);
