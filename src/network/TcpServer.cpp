@@ -7,101 +7,47 @@
 #include <netinet/in.h>
 #include <unistd.h>
 
+#include "http/network/ClientConnection.hpp"
+
 namespace http{
 
+const char RESPONSE[] = "HTTP/1.1 200 OK\r\n"
+    "Content-Type: text/plain\r\n"
+    "Content-Length: 12\r\n"
+    "Connection: close\r\n"
+    "\r\n"
+    "Hello World!";
+
 TcpServer::TcpServer(int port):
-    server_socket_(-1),
+    server_socket_(Socket::create_tcp()),
     port_(port)
 {
-    createSocket();
-    bindSocket();
-    listenSocket();
-}
-
-TcpServer::~TcpServer(){
-    if(server_socket_ != -1){
-        close(server_socket_);
-    }
-}
-
-void TcpServer::createSocket(){
-    server_socket_ = socket(
-        AF_INET, // IPv4 127.0.0.1
-        SOCK_STREAM, // TCP
-        0
-    );
-
-    if(server_socket_ == -1){
-        std::cerr << "[ERROR] Creating socket failed\n";
-        throw std::runtime_error(
-            "Failed to create server socket"
-        );
-    }
-
-    int reuse = 1;
-
-    if(setsockopt(
-        server_socket_,
-        SOL_SOCKET,
-        SO_REUSEADDR,
-        &reuse,
-        sizeof(reuse)
-    ) == -1){
-        close(server_socket_);
-
-        server_socket_ = -1;
-
-        throw std::runtime_error(
-            "Failed to set SO_REUSEADDR"
-        );
-    }
-}
-
-void TcpServer::bindSocket(){
-    sockaddr_in server_address{}; // IPv4 address
-    server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = INADDR_ANY;
-    server_address.sin_port = htons(port_);
-    
-
-
-    if(bind(
-        server_socket_,
-        reinterpret_cast<sockaddr*>(&server_address),
-        sizeof(server_address)
-    ) == -1){
-        std::cerr << "[ERROR] Binding socket failed\n";
-        throw std::runtime_error(
-            "Failed to bind server socket"
-        );
-    }
-}
-
-void TcpServer::listenSocket(){
-    if(listen(server_socket_, SOMAXCONN) == -1){
-        throw std::runtime_error(
-            "Failed to listen on server socket"
-        );
-    }
+    server_socket_.setReuseAddress();
+    server_socket_.bind(port_);
+    server_socket_.listen();
 }
 
 void TcpServer::start(){
     std::cout << "[INFO] Server listening on port " << port_ << '\n';
 
     while(true){
-        const int client_socket = accept(
-            server_socket_,
-            nullptr,
-            nullptr
+        ClientConnection connection(
+            server_socket_.accept()
         );
 
-        if(client_socket == -1){
-            std::cerr << "Failed to accept connection\n";
+        std::cout << "[INFO] Client Connected\n";
+
+        const std::string request = connection.receive();
+
+        if(request.empty()){
             continue;
         }
 
-        std::cout << "Client connected\n";
-        close(client_socket);
+        std::cout << "[INFO] Request: " << request << '\n';
+        
+        connection.send(
+            RESPONSE
+        );
     }
 }
 

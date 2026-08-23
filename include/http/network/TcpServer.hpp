@@ -1,13 +1,15 @@
 #ifndef TCP_SERVER_HPP
 #define TCP_SERVER_HPP
 
+#include "http/network/Socket.hpp"
+
 namespace http{
 
 class TcpServer{
 public:
     explicit TcpServer(int port);
 
-    ~TcpServer();
+    ~TcpServer() = default;
 
     TcpServer(const TcpServer&) = delete;
     TcpServer& operator=(const TcpServer&) = delete;
@@ -17,12 +19,9 @@ public:
     TcpServer& operator=(TcpServer&&) = delete;
 
     void start();
-private:
-    void createSocket();
-    void bindSocket();
-    void listenSocket();
 
-    int server_socket_;
+private:
+    Socket server_socket_;
     int port_;
 };
 
