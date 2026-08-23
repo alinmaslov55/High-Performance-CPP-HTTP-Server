@@ -11,6 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(http_server
     src/main.cpp
+    src/network/TcpServer.cpp
 )
 
 target_include_directories(http_server
