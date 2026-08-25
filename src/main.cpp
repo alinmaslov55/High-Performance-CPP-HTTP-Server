@@ -1,16 +1,20 @@
-#include <iostream>
+#include <cassert>
 
-#include "http/network/TcpServer.hpp"
+#include <http/http/HttpParser.hpp>
 
-int main(){
-    try {
-        http::TcpServer tcpServer(9090);
+int main()
+{
+    http::HttpParser parser;
+    http::HttpRequest request;
 
-        tcpServer.start();
-    } catch (const std::exception& e){
-        std::cerr << "[ERROR] " << e.what() << '\n';
-        return 1;
-    }
+    const auto result =
+    parser.parseHeaders(
+        "Host: example.com\r\n"
+        "Accept: application/js",
+        request
+    );
 
-    return 0;
+    assert(
+        result == http::ParseResult::Incomplete
+    );
 }
