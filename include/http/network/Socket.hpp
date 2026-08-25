@@ -7,35 +7,37 @@
 
 namespace http {
 
-class Socket{
-private:
-    explicit Socket(int file_descriptor) noexcept;
-    Socket() noexcept;
-public:
-    ~Socket();
-    Socket(const Socket&) = delete;
-    Socket& operator=(const Socket&) = delete;
+class Socket {
+  private:
+	explicit Socket(int file_descriptor) noexcept;
+	Socket() noexcept;
 
-    Socket(Socket&&) noexcept;
-    Socket& operator=(Socket&&) noexcept;
+  public:
+	~Socket();
+	Socket(const Socket &) = delete;
+	Socket &operator=(const Socket &) = delete;
 
-    [[nodiscard]]
-    int fd() const noexcept;
+	Socket(Socket &&) noexcept;
+	Socket &operator=(Socket &&) noexcept;
 
-    [[nodiscard]]
-    bool valid() const noexcept;
-    void close() noexcept;
+	[[nodiscard]]
+	int fd() const noexcept;
 
-    void setReuseAddress();
-    void bind(uint16_t port);
-    void listen(int backlog = SOMAXCONN);
-    Socket accept();
+	[[nodiscard]]
+	bool valid() const noexcept;
+	void close() noexcept;
 
-    static Socket create_tcp();
-private:
-    int file_descriptor_;
+	void setReuseAddress();
+	void bind(uint16_t port);
+	void listen(int backlog = SOMAXCONN);
+	Socket accept();
+
+	static Socket create_tcp();
+
+  private:
+	int file_descriptor_;
 };
 
-} // http
-    
+} // namespace http
+
 #endif // SOCKET_HPP

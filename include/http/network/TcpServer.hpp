@@ -3,26 +3,26 @@
 
 #include "http/network/Socket.hpp"
 
-namespace http{
+namespace http {
 
-class TcpServer{
-public:
-    explicit TcpServer(int port);
+class TcpServer {
+  public:
+	explicit TcpServer(int port);
 
-    ~TcpServer() = default;
+	~TcpServer() = default;
 
-    TcpServer(const TcpServer&) = delete;
-    TcpServer& operator=(const TcpServer&) = delete;
+	TcpServer(const TcpServer &) = delete;
+	TcpServer &operator=(const TcpServer &) = delete;
 
-    // [INFO] To be implemented if problems appear
-    TcpServer(TcpServer&&) = delete;
-    TcpServer& operator=(TcpServer&&) = delete;
+	// [INFO] To be implemented if problems appear
+	TcpServer(TcpServer &&) = delete;
+	TcpServer &operator=(TcpServer &&) = delete;
 
-    void start();
+	void start();
 
-private:
-    Socket server_socket_;
-    int port_;
+  private:
+	Socket server_socket_;
+	int port_;
 };
 
 } // namespace http

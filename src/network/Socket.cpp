@@ -1,128 +1,94 @@
 #include "http/network/Socket.hpp"
 
-#include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <unistd.h>
 
 #include <stdexcept>
 
 namespace http {
 
-Socket::Socket() noexcept:
-    file_descriptor_(-1){}
+Socket::Socket() noexcept : file_descriptor_(-1) {}
 
-Socket::Socket(int file_descriptor) noexcept:
-    file_descriptor_(file_descriptor){}
+Socket::Socket(int file_descriptor) noexcept
+	: file_descriptor_(file_descriptor) {}
 
-Socket::~Socket(){
-    close();
+Socket::~Socket() { close(); }
+
+Socket::Socket(Socket &&other) noexcept
+	: file_descriptor_(other.file_descriptor_) {
+	other.file_descriptor_ = -1;
 }
 
-Socket::Socket(Socket&& other) noexcept:
-    file_descriptor_(other.file_descriptor_)
-{
-    other.file_descriptor_ = -1;
+Socket &Socket::operator=(Socket &&other) noexcept {
+	if (this != &other) {
+		close();
+
+		file_descriptor_ = other.file_descriptor_;
+
+		other.file_descriptor_ = -1;
+	}
+
+	return *this;
 }
 
-Socket& Socket::operator=(Socket&& other) noexcept {
-    if(this != &other){
-        close();
+int Socket::fd() const noexcept { return file_descriptor_; }
 
-        file_descriptor_ = other.file_descriptor_;
-
-        other.file_descriptor_ = -1;
-    }
-
-    return *this;
-}
-
-int Socket::fd() const noexcept{
-    return file_descriptor_;
-}
-
-bool Socket::valid() const noexcept {
-    return file_descriptor_ != -1;
-}
+bool Socket::valid() const noexcept { return file_descriptor_ != -1; }
 
 void Socket::close() noexcept {
-    if(file_descriptor_ != -1){
-        ::close(file_descriptor_);
+	if (file_descriptor_ != -1) {
+		::close(file_descriptor_);
 
-        file_descriptor_ = -1;
-    }
+		file_descriptor_ = -1;
+	}
 }
 
-Socket Socket::create_tcp(){
-    const int file_descriptor = socket(
-        AF_INET,
-        SOCK_STREAM,
-        0
-    );
+Socket Socket::create_tcp() {
+	const int file_descriptor = socket(AF_INET, SOCK_STREAM, 0);
 
-    if(file_descriptor == -1){
-        throw std::runtime_error(
-            "Failed to create TCP socket"
-        );
-    }
+	if (file_descriptor == -1) {
+		throw std::runtime_error("Failed to create TCP socket");
+	}
 
-    return Socket(file_descriptor);
+	return Socket(file_descriptor);
 }
 
-void Socket::setReuseAddress(){
-    int reuse = 1;
-    if(setsockopt(
-        file_descriptor_,
-        SOL_SOCKET,
-        SO_REUSEADDR,
-        &reuse,
-        sizeof(reuse)
-    ) == -1)
-    {
-        throw std::runtime_error("Failed to set SO_REUSEADDR");    
-    }
+void Socket::setReuseAddress() {
+	int reuse = 1;
+	if (setsockopt(file_descriptor_, SOL_SOCKET, SO_REUSEADDR, &reuse,
+				   sizeof(reuse)) == -1) {
+		throw std::runtime_error("Failed to set SO_REUSEADDR");
+	}
 }
 
-void Socket::bind(uint16_t port){
-    sockaddr_in address{};
+void Socket::bind(uint16_t port) {
+	sockaddr_in address{};
 
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(port);
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = INADDR_ANY;
+	address.sin_port = htons(port);
 
-    if(::bind(
-            file_descriptor_,
-            reinterpret_cast<sockaddr*>(&address),
-            sizeof(address)
-        ) == -1)
-    {
-        throw std::runtime_error("Failed to bind socket");
-    }
+	if (::bind(file_descriptor_, reinterpret_cast<sockaddr *>(&address),
+			   sizeof(address)) == -1) {
+		throw std::runtime_error("Failed to bind socket");
+	}
 }
 
-void Socket::listen(int backlog){
-    if(::listen(
-            file_descriptor_,
-            backlog
-        ) == -1)
-    {
-        throw std::runtime_error("Failed to listen on socket");
-    }
+void Socket::listen(int backlog) {
+	if (::listen(file_descriptor_, backlog) == -1) {
+		throw std::runtime_error("Failed to listen on socket");
+	}
 }
 
-Socket Socket::accept(){
-    const int client_fd = ::accept(
-        file_descriptor_,
-        nullptr,
-        nullptr
-    );
+Socket Socket::accept() {
+	const int client_fd = ::accept(file_descriptor_, nullptr, nullptr);
 
-    if(client_fd == -1){
-        throw std::runtime_error(
-            "Failed to accept connection"
-        );
-    }
+	if (client_fd == -1) {
+		throw std::runtime_error("Failed to accept connection");
+	}
 
-    return Socket(client_fd);
+	return Socket(client_fd);
 }
 
 } // namespace http

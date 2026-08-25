@@ -3,50 +3,44 @@
 #include <iostream>
 #include <stdexcept>
 
-#include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include "http/network/ClientConnection.hpp"
 
-namespace http{
+namespace http {
 
 const char RESPONSE[] = "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/plain\r\n"
-    "Content-Length: 12\r\n"
-    "Connection: close\r\n"
-    "\r\n"
-    "Hello World!";
+						"Content-Type: text/plain\r\n"
+						"Content-Length: 12\r\n"
+						"Connection: close\r\n"
+						"\r\n"
+						"Hello World!";
 
-TcpServer::TcpServer(int port):
-    server_socket_(Socket::create_tcp()),
-    port_(port)
-{
-    server_socket_.setReuseAddress();
-    server_socket_.bind(port_);
-    server_socket_.listen();
+TcpServer::TcpServer(int port)
+	: server_socket_(Socket::create_tcp()), port_(port) {
+	server_socket_.setReuseAddress();
+	server_socket_.bind(port_);
+	server_socket_.listen();
 }
 
-void TcpServer::start(){
-    std::cout << "[INFO] Server listening on port " << port_ << '\n';
+void TcpServer::start() {
+	std::cout << "[INFO] Server listening on port " << port_ << '\n';
 
-    while(true){
-        ClientConnection connection(
-            server_socket_.accept()
-        );
+	while (true) {
+		ClientConnection connection(server_socket_.accept());
 
-        std::cout << "[INFO] Client Connected\n";
+		std::cout << "[INFO] Client Connected\n";
 
-        if(!connection.read()){
-            continue;
-        }
+		if (!connection.read()) {
+			continue;
+		}
 
-        std::cout << "[INFO] Request: " << connection.data() << '\n';
-        
-        connection.send(
-            RESPONSE
-        );
-    }
+		std::cout << "[INFO] Request: " << connection.data() << '\n';
+
+		connection.send(RESPONSE);
+	}
 }
 
 } // namespace http
