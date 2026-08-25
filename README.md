@@ -1,4 +1,4 @@
-# High-Performance-C-HTTP-Server
+# High-Performance-CPP-HTTP-Server
 
 ## BUILD COMMANDS
 
