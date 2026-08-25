@@ -5,6 +5,9 @@
 
 namespace http {
 
+/**
+ * @brief Orchestrator for binding ports and accepting incoming connections
+ */
 class TcpServer {
   public:
 	explicit TcpServer(int port);
@@ -18,6 +21,9 @@ class TcpServer {
 	TcpServer(TcpServer &&) = delete;
 	TcpServer &operator=(TcpServer &&) = delete;
 
+	/**
+	 * @brief Enters an infinite blocking loop to accept and handle client connections
+	 */
 	void start();
 
   private:
