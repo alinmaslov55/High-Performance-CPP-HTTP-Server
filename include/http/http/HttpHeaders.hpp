@@ -29,9 +29,11 @@ class HttpHeaders {
 
 	void clear() noexcept;
 
-  private:
+    [[nodiscard]]
+    const std::vector<Header>& all() const noexcept;
 	static bool equalsIgnoreCase(std::string_view lhs,
 								 std::string_view rhs) noexcept;
+  private:
 
 	std::vector<Header> headers_;
 };

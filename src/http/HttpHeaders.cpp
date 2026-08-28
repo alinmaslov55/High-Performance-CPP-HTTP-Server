@@ -64,4 +64,8 @@ std::size_t HttpHeaders::size() const noexcept { return headers_.size(); }
 
 void HttpHeaders::clear() noexcept { headers_.clear(); }
 
+const std::vector<HttpHeaders::Header>& HttpHeaders::all() const noexcept {
+	return headers_;
+}
+
 } // namespace http
