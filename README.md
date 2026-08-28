@@ -8,3 +8,9 @@ cmake --build build
 
 ./build/http_server
 ```
+
+## Formatting
+
+```bash
+find . \( -name "*.cpp" -o -name "*.hpp" \) -exec clang-format -i {} +
+```

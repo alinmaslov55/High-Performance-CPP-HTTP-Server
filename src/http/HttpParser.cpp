@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <charconv>
+#include <limits>
 #include <string>
 
 namespace http {
@@ -11,20 +12,28 @@ namespace utils {
 HttpMethod parseMethod(std::string_view method) {
 	if (method == "GET")
 		return HttpMethod::GET;
+
 	if (method == "POST")
 		return HttpMethod::POST;
+
 	if (method == "PUT")
 		return HttpMethod::PUT;
+
 	if (method == "PATCH")
 		return HttpMethod::PATCH;
+
 	if (method == "DELETE")
 		return HttpMethod::DELETE;
+
 	if (method == "HEAD")
 		return HttpMethod::HEAD;
+
 	if (method == "OPTIONS")
 		return HttpMethod::OPTIONS;
+
 	if (method == "CONNECT")
 		return HttpMethod::CONNECT;
+
 	if (method == "TRACE")
 		return HttpMethod::TRACE;
 
@@ -74,9 +83,24 @@ bool isValidHeaderValue(std::string_view value) {
 		if (character < 0x20 && character != '\t') {
 			return false;
 		}
+
+		if (character == 0x7F) {
+			return false;
+		}
 	}
 
 	return true;
+}
+
+bool parseContentLength(std::string_view value, std::size_t &result) {
+	if (value.empty()) {
+		return false;
+	}
+
+	const auto [pointer, error] =
+		std::from_chars(value.data(), value.data() + value.size(), result);
+
+	return error == std::errc{} && pointer == value.data() + value.size();
 }
 
 } // namespace utils
@@ -84,7 +108,13 @@ bool isValidHeaderValue(std::string_view value) {
 ParseResult HttpParser::parse(std::string_view data, HttpRequest &request) {
 	while (true) {
 		switch (state_) {
+
 		case State::RequestLine: {
+			if (consumed_ > data.size()) {
+				state_ = State::Error;
+				return ParseResult::Invalid;
+			}
+
 			const std::string_view remaining = data.substr(consumed_);
 
 			const std::size_t lineEnd = remaining.find("\r\n");
@@ -122,6 +152,11 @@ ParseResult HttpParser::parse(std::string_view data, HttpRequest &request) {
 		}
 
 		case State::Headers: {
+			if (consumed_ > data.size()) {
+				state_ = State::Error;
+				return ParseResult::Invalid;
+			}
+
 			const std::string_view remaining = data.substr(consumed_);
 
 			const std::size_t headersEnd = remaining.find("\r\n\r\n");
@@ -154,24 +189,22 @@ ParseResult HttpParser::parse(std::string_view data, HttpRequest &request) {
 				return ParseResult::Invalid;
 			}
 
+			// Consume headers + final "\r\n".
 			consumed_ += headersEnd + 4;
 
 			const std::string_view contentLength =
 				request.header("Content-Length");
 
 			if (contentLength.empty()) {
+				bodySize_ = 0;
 				state_ = State::Complete;
+
 				return ParseResult::Complete;
 			}
 
 			bodySize_ = 0;
 
-			const auto [pointer, error] = std::from_chars(
-				contentLength.data(),
-				contentLength.data() + contentLength.size(), bodySize_);
-
-			if (error != std::errc{} ||
-				pointer != contentLength.data() + contentLength.size()) {
+			if (!utils::parseContentLength(contentLength, bodySize_)) {
 				state_ = State::Error;
 				return ParseResult::Invalid;
 			}
@@ -185,6 +218,7 @@ ParseResult HttpParser::parse(std::string_view data, HttpRequest &request) {
 				request.setBody("");
 
 				state_ = State::Complete;
+
 				return ParseResult::Complete;
 			}
 
@@ -260,7 +294,7 @@ ParseResult HttpParser::parseRequestLine(std::string_view data,
 
 	const std::string_view version = line.substr(secondSpace + 1);
 
-	if (method.empty() || target.empty()) {
+	if (method.empty() || target.empty() || version.empty()) {
 		return ParseResult::Invalid;
 	}
 
@@ -282,32 +316,19 @@ ParseResult HttpParser::parseRequestLine(std::string_view data,
 
 ParseResult HttpParser::parseHeaders(std::string_view data,
 									 HttpRequest &request) const {
-	std::size_t headersEnd = data.find("\r\n\r\n");
-
-	if (headersEnd == std::string_view::npos) {
-		if (data.size() < 2 || data.substr(data.size() - 2) != "\r\n") {
-			return ParseResult::Incomplete;
-		}
-
-		headersEnd = data.size();
-	}
-
-	if (headersEnd > MAX_HEADER_SIZE) {
-		return ParseResult::Invalid;
-	}
 
 	std::size_t position = 0;
 	std::size_t headerCount = 0;
 
-	while (position < headersEnd) {
+	while (position < data.size()) {
 		const std::size_t lineEnd = data.find("\r\n", position);
 
-		if (lineEnd == std::string_view::npos || lineEnd > headersEnd) {
-			return ParseResult::Invalid;
+		if (lineEnd == std::string_view::npos) {
+			return ParseResult::Incomplete;
 		}
 
 		if (lineEnd == position) {
-			break;
+			return ParseResult::Complete;
 		}
 
 		const std::string_view line = data.substr(position, lineEnd - position);
@@ -341,7 +362,7 @@ ParseResult HttpParser::parseHeaders(std::string_view data,
 		position = lineEnd + 2;
 	}
 
-	return ParseResult::Complete;
+	return ParseResult::Incomplete;
 }
 
 void HttpParser::reset() noexcept {
@@ -349,5 +370,7 @@ void HttpParser::reset() noexcept {
 	consumed_ = 0;
 	bodySize_ = 0;
 }
+
+std::size_t HttpParser::consumedBytes() const noexcept { return consumed_; }
 
 } // namespace http

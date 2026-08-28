@@ -22,7 +22,8 @@ class TcpServer {
 	TcpServer &operator=(TcpServer &&) = delete;
 
 	/**
-	 * @brief Enters an infinite blocking loop to accept and handle client connections
+	 * @brief Enters an infinite blocking loop to accept and handle client
+	 * connections
 	 */
 	void start();
 

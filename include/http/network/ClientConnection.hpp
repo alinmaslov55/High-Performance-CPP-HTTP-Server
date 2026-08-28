@@ -5,6 +5,8 @@
 #include <string>
 #include <string_view>
 
+#include "http/http/HttpParser.hpp"
+#include "http/http/HttpRequest.hpp"
 #include "http/network/ReadBuffer.hpp"
 #include "http/network/Socket.hpp"
 
@@ -28,7 +30,8 @@ class ClientConnection {
 	/**
 	 * @brief Reads data from socket and appends to an internal buffer
 	 * @throws std::runtime_error on read error
-	 * @return true if data was read successfully, flas eif connection was closed by peer
+	 * @return true if data was read successfully, flas eif connection was
+	 * closed by peer
 	 */
 	[[nodiscard]]
 	bool read();
@@ -47,9 +50,13 @@ class ClientConnection {
 	[[nodiscard]]
 	std::string_view data() const noexcept;
 
+	ParseResult parseRequest(HttpRequest &request);
+	void consumeParsedRequest();
+
   private:
 	Socket socket_;
 	ReadBuffer readBuffer_;
+	HttpParser parser_;
 };
 
 } // namespace http

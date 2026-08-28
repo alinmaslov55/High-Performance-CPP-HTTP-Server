@@ -18,14 +18,19 @@ class HttpParser {
 	static constexpr std::size_t MAX_BODY_SIZE = 10 * 1024 * 1024;
 
 	ParseResult parse(std::string_view data, HttpRequest &request);
-	ParseResult parseRequestLine(std::string_view data,
-								 HttpRequest &request) const;
-	ParseResult parseHeaders(std::string_view data, HttpRequest &request) const;
-	ParseResult parseBody(std::string_view data, HttpRequest &request) const;
+
+	[[nodiscard]]
+	std::size_t consumedBytes() const noexcept;
+
 	void reset() noexcept;
 
   private:
 	enum class State { RequestLine, Headers, Body, Complete, Error };
+
+	ParseResult parseRequestLine(std::string_view data,
+								 HttpRequest &request) const;
+	ParseResult parseHeaders(std::string_view data, HttpRequest &request) const;
+	ParseResult parseBody(std::string_view data, HttpRequest &request) const;
 
 	State state_ = State::RequestLine;
 	std::size_t consumed_ = 0;

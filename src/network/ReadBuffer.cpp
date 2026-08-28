@@ -20,12 +20,12 @@ std::string_view ReadBuffer::data() const noexcept {
 
 void ReadBuffer::consume(std::size_t size) {
 	if (size > buffer_.size()) {
-		throw std::runtime_error(
+		throw std::out_of_range(
 			"Cannot consume more data than buffer contains");
 	}
 
 	// TODO solve O(n) complexity
-	buffer_.erase(0, size);
+	buffer_.erase(buffer_.begin(), buffer_.end() + size);
 }
 
 void ReadBuffer::clear() noexcept { buffer_.clear(); }

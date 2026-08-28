@@ -1,6 +1,8 @@
-#include "http/network/ClientConnection.hpp"
+#include <http/network/ClientConnection.hpp>
 
+#include <cerrno>
 #include <stdexcept>
+#include <utility>
 
 #include <sys/socket.h>
 
@@ -10,44 +12,72 @@ ClientConnection::ClientConnection(Socket socket)
 	: socket_(std::move(socket)) {}
 
 bool ClientConnection::read() {
-	char temporary_buffer[8192];
+	char temporaryBuffer[8192];
 
-	const ssize_t bytes_received =
-		::recv(socket_.fd(), temporary_buffer, sizeof(temporary_buffer), 0);
+	while (true) {
+		const ssize_t bytesReceived =
+			::recv(socket_.fd(), temporaryBuffer, sizeof(temporaryBuffer), 0);
 
-	if (bytes_received == -1) {
+		if (bytesReceived > 0) {
+			readBuffer_.append(temporaryBuffer,
+							   static_cast<std::size_t>(bytesReceived));
+
+			return true;
+		}
+
+		if (bytesReceived == 0) {
+			return false;
+		}
+
+		if (errno == EINTR) {
+			continue;
+		}
+
 		throw std::runtime_error("Failed to receive data");
 	}
-
-	if (bytes_received == 0) {
-		return false;
-	}
-
-	readBuffer_.append(temporary_buffer,
-					   static_cast<std::size_t>(bytes_received));
-
-	return true;
 }
 
 void ClientConnection::send(const std::string &data) {
 	const char *buffer = data.data();
-	std::size_t bytes_remaining = data.size();
+	std::size_t bytesRemaining = data.size();
 
-	while (bytes_remaining > 0) {
-		const ssize_t bytes_sent =
-			::send(socket_.fd(), buffer, bytes_remaining, 0);
+	while (bytesRemaining > 0) {
+		const ssize_t bytesSent =
+			::send(socket_.fd(), buffer, bytesRemaining, 0);
 
-		if (bytes_sent == -1) {
-			throw std::runtime_error("Failed to send data");
+		if (bytesSent > 0) {
+			buffer += bytesSent;
+			bytesRemaining -= static_cast<std::size_t>(bytesSent);
+
+			continue;
 		}
 
-		buffer += bytes_sent;
-		bytes_remaining -= bytes_sent;
+		if (bytesSent == 0) {
+			throw std::runtime_error("Socket send returned zero");
+		}
+
+		if (errno == EINTR) {
+			continue;
+		}
+
+		throw std::runtime_error("Failed to send data");
 	}
 }
 
 std::string_view ClientConnection::data() const noexcept {
 	return readBuffer_.data();
+}
+
+ParseResult ClientConnection::parseRequest(HttpRequest &request) {
+	return parser_.parse(readBuffer_.data(), request);
+}
+
+void ClientConnection::consumeParsedRequest() {
+	const std::size_t consumed = parser_.consumedBytes();
+
+	readBuffer_.consume(consumed);
+
+	parser_.reset();
 }
 
 } // namespace http

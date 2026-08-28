@@ -53,7 +53,8 @@ class Socket {
 	void bind(uint16_t port);
 	/**
 	 * @brief Marks socket as listening
-	 * @param backlog The port max length to which to which the queue of pending connection can grow
+	 * @param backlog The port max length to which to which the queue of pending
+	 * connection can grow
 	 * @throws std::runtime_errpr
 	 */
 	void listen(int backlog = SOMAXCONN);
