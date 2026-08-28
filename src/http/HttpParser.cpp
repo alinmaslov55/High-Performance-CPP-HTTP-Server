@@ -683,7 +683,7 @@ ParseResult HttpParser::parseHeaders(std::string_view data,
 			}
 		}
 
-		request.setHeader(std::string(name), std::string(value));
+		request.addHeader(std::string(name), std::string(value));
 
 		position = lineEnd + 2;
 	}

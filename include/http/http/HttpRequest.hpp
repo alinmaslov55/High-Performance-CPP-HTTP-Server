@@ -1,9 +1,11 @@
 #ifndef HTTP_REQUEST_HPP
 #define HTTP_REQUEST_HPP
 
+#include <http/http/HttpHeaders.hpp>
+
 #include <string>
 #include <string_view>
-#include <unordered_map>
+#include <vector>
 
 namespace http {
 
@@ -23,13 +25,8 @@ enum class HttpMethod {
 class HttpRequest {
   public:
 	HttpRequest() = default;
+
 	HttpRequest(HttpMethod method, std::string target, std::string version);
-
-	HttpRequest(const HttpRequest &) = default;
-	HttpRequest &operator=(const HttpRequest &) = default;
-
-	HttpRequest(HttpRequest &&) noexcept = default;
-	HttpRequest &operator=(HttpRequest &&) noexcept = default;
 
 	[[nodiscard]]
 	HttpMethod method() const noexcept;
@@ -40,25 +37,29 @@ class HttpRequest {
 	[[nodiscard]]
 	std::string_view version() const noexcept;
 
+	void addHeader(std::string name, std::string value);
+
+	void setHeader(std::string name, std::string value);
+
 	[[nodiscard]]
 	std::string_view header(std::string_view name) const noexcept;
 
 	[[nodiscard]]
-	bool hasHeader(std::string_view name) const noexcept;
+	std::vector<std::string_view> headers(std::string_view name) const;
+
+	void setBody(std::string body);
 
 	[[nodiscard]]
 	std::string_view body() const noexcept;
 
-	void setHeader(std::string name, std::string value);
-	void setBody(std::string body);
-
   private:
-	static std::string normalizeHeaderName(std::string_view name);
+	HttpMethod method_ = HttpMethod::UNKNOWN;
 
-	HttpMethod method_;
 	std::string target_;
 	std::string version_;
-	std::unordered_map<std::string, std::string> headers_;
+
+	HttpHeaders headers_;
+
 	std::string body_;
 };
 

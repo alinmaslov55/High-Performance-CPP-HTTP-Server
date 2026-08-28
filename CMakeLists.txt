@@ -11,6 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(http_server
     src/main.cpp
+    src/http/HttpHeaders.cpp
     src/http/HttpParser.cpp
     src/http/HttpRequest.cpp
     src/network/ClientConnection.cpp
