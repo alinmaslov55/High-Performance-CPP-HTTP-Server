@@ -14,6 +14,9 @@ add_executable(http_server
     src/http/HttpHeaders.cpp
     src/http/HttpParser.cpp
     src/http/HttpRequest.cpp
+    src/http/HttpResponse.cpp
+    src/http/Route.cpp
+    src/http/Router.cpp
     src/network/ClientConnection.cpp
     src/network/ReadBuffer.cpp
     src/network/TcpServer.cpp

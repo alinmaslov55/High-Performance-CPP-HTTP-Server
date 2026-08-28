@@ -29,7 +29,7 @@ class HttpResponse {
 public:
     HttpResponse();
 
-    void setStatus(HttpStatus status);
+    void setStatus(HttpStatus status) noexcept;
 
     void setHeader(
         std::string name,
@@ -54,7 +54,7 @@ public:
     [[nodiscard]]
     std::string_view body() const noexcept;
 
-    std::string HttpResponse::reasonPhrase(
+    std::string reasonPhrase(
         const HttpStatus& status
     ) const noexcept;
 
