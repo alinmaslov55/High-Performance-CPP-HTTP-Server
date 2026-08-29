@@ -115,11 +115,6 @@ std::string HttpResponse::serialize() const {
 
 	for (const auto& [name, value] : headers_.all()) {
 
-		/*
-		 * Content-Length is generated automatically below.
-		 *
-		 * Don't serialize a user-supplied Content-Length here.
-		 */
 
 		if (HttpHeaders::equalsIgnoreCase(
 				name,

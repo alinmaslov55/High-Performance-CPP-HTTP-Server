@@ -9,6 +9,7 @@ using namespace http;
 int main() {
     Router router;
 
+    router.serveFiles("/static/", "./public");
     router.get("/", [](const HttpRequest& req) -> HttpResponse {
         HttpResponse res;
         res.setStatus(HttpStatus::OK);

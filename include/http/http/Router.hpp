@@ -31,11 +31,15 @@ public:
 
     [[nodiscard]]
     HttpResponse handle(const HttpRequest& request) const;
+
+    // only for small files { .css .html .js}
+    void serveFiles(std::string mountPoint, std::string directory);
 private:
     struct Route{
         HttpMethod method;
         std::string path;
         Handler handler;
+        bool isPrefix{false};
     };
 
     std::vector<Route> routes_;
