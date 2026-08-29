@@ -1,6 +1,7 @@
 #ifndef TCP_SERVER_HPP
 #define TCP_SERVER_HPP
 
+#include "http/http/Router.hpp"
 #include "http/network/Socket.hpp"
 
 namespace http {
@@ -10,7 +11,7 @@ namespace http {
  */
 class TcpServer {
   public:
-	explicit TcpServer(int port);
+	explicit TcpServer(int port, const Router& router);
 
 	~TcpServer() = default;
 
@@ -30,6 +31,7 @@ class TcpServer {
   private:
 	Socket server_socket_;
 	int port_;
+	const Router& router_;
 };
 
 } // namespace http
