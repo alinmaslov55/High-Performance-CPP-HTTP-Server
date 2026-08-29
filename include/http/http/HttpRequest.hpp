@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <unordered_map>
 
 namespace http {
 
@@ -52,6 +53,14 @@ class HttpRequest {
 	[[nodiscard]]
 	std::string_view body() const noexcept;
 
+	[[nodiscard]]
+	std::string_view path() const noexcept;
+
+	[[nodiscard]]
+	std::string_view query(std::string_view key) const noexcept;
+
+	void setPath(std::string path);
+	void addQuery(std::string key, std::string value);
   private:
 	HttpMethod method_ = HttpMethod::UNKNOWN;
 
@@ -61,6 +70,8 @@ class HttpRequest {
 	HttpHeaders headers_;
 
 	std::string body_;
+	std::string path_;
+	std::unordered_map<std::string, std::string> queries_;
 };
 
 } // namespace http

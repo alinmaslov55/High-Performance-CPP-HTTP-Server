@@ -36,4 +36,24 @@ void HttpRequest::setBody(std::string body) { body_ = std::move(body); }
 
 std::string_view HttpRequest::body() const noexcept { return body_; }
 
+std::string_view HttpRequest::path() const noexcept { 
+    return path_; 
+}
+
+std::string_view HttpRequest::query(std::string_view key) const noexcept {
+    auto it = queries_.find(std::string(key));
+    if (it != queries_.end()) {
+        return it->second;
+    }
+    return {};
+}
+
+void HttpRequest::setPath(std::string path) { 
+    path_ = std::move(path); 
+}
+
+void HttpRequest::addQuery(std::string key, std::string value) {
+    queries_.emplace(std::move(key), std::move(value));
+}
+
 } // namespace http

@@ -95,7 +95,7 @@ HttpResponse Router::handle(
 
 	for (const Route& route : routes_) {
 
-		if (route.path != request.target()) {
+		if (route.path != request.path()) {
 			continue;
 		}
 
