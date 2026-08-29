@@ -60,6 +60,8 @@ public:
 
     [[nodiscard]]
     std::string serialize() const;
+
+    void json(const std::string& jsonString);
 private:
     HttpStatus status_;
     HttpHeaders headers_;

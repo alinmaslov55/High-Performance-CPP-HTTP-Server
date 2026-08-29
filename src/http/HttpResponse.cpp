@@ -146,4 +146,9 @@ std::string HttpResponse::serialize() const {
 	return result;
 }
 
+void HttpResponse::json(const std::string& jsonString){
+	setHeader("Content-Type", "application/json");
+	setBody(jsonString);
+}
+
 } // namespace http

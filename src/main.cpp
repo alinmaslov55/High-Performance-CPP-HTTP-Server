@@ -1,7 +1,9 @@
 #include "http/network/TcpServer.hpp"
 #include "http/http/Router.hpp"
+#include <nlohmann/json.hpp>
 #include <iostream>
 
+using json = nlohmann::json;
 using namespace http;
 
 int main() {
@@ -20,6 +22,39 @@ int main() {
         res.setStatus(HttpStatus::OK);
         res.setHeader("Content-Type", "application/json");
         res.setBody("{\"users\": [\"Alice\", \"Bob\", \"Charlie\"]}");
+        return res;
+    });
+
+    router.post("/api/users", [](const HttpRequest& req) -> HttpResponse {
+        HttpResponse res;
+
+        try {
+            json requestJson = json::parse(req.body());
+
+            std::string name = requestJson.value("name", "Unknown");
+            int age = requestJson.value("age", 0);
+
+            json responseJson;
+            responseJson["status"] = "success";
+            responseJson["message"] = "User " + name + " created!";
+            responseJson["data"] = {
+                {"name", name},
+                {"age", age},
+                {"id", 42}
+            };
+
+            res.setStatus(HttpStatus::Created);
+            res.json(responseJson.dump());
+
+        } catch (const json::parse_error& e) {
+            json errorJson;
+            errorJson["status"] = "error";
+            errorJson["message"] = "Invalid JSON payload";
+
+            res.setStatus(HttpStatus::BadRequest);
+            res.json(errorJson.dump());
+        }
+
         return res;
     });
 

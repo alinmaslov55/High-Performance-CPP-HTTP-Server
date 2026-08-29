@@ -8,6 +8,17 @@ project(cpp_http_server
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+include(FetchContent)
+
+FetchContent_Declare(
+    json
+    URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP true
+)
+
+FetchContent_MakeAvailable(json)
 
 add_executable(http_server
     src/main.cpp
@@ -21,6 +32,10 @@ add_executable(http_server
     src/network/ReadBuffer.cpp
     src/network/TcpServer.cpp
     src/network/Socket.cpp
+)
+target_link_libraries(http_server
+    PRIVATE
+    nlohmann_json::nlohmann_json
 )
 
 target_include_directories(http_server
