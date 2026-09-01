@@ -50,6 +50,7 @@ class Socket {
 	 * @param port The port number to bind to
 	 * @throws std::runtime_errpr
 	 */
+	void setNonBlocking();
 	void bind(uint16_t port);
 	/**
 	 * @brief Marks socket as listening

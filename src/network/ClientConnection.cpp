@@ -22,7 +22,7 @@ bool ClientConnection::read() {
 			readBuffer_.append(temporaryBuffer,
 							   static_cast<std::size_t>(bytesReceived));
 
-			return true;
+			continue;
 		}
 
 		if (bytesReceived == 0) {
@@ -31,6 +31,10 @@ bool ClientConnection::read() {
 
 		if (errno == EINTR) {
 			continue;
+		}
+
+		if(errno == EAGAIN || errno == EWOULDBLOCK){
+			return true;
 		}
 
 		throw std::runtime_error("Failed to receive data");
@@ -58,6 +62,10 @@ void ClientConnection::send(const std::string &data) {
 
 		if (errno == EINTR) {
 			continue;
+		}
+
+		if(errno == EAGAIN || errno == EWOULDBLOCK){
+			break;
 		}
 
 		throw std::runtime_error("Failed to send data");

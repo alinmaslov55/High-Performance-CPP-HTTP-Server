@@ -3,8 +3,15 @@
 
 #include "http/http/Router.hpp"
 #include "http/network/Socket.hpp"
+#include "http/network/Epoll.hpp"
+#include "http/network/ClientConnection.hpp"
+#include "http/concurrency/ThreadPool.hpp"
+
+#include <unordered_map>
+#include <mutex>
 
 namespace http {
+using namespace concurrency;
 
 /**
  * @brief Orchestrator for binding ports and accepting incoming connections
@@ -29,9 +36,18 @@ class TcpServer {
 	void start();
 
   private:
+	void handleNewConnection();
+	void handleClientData(int client_fd);
+	void disconnectClient(int client_fd);
+
 	Socket server_socket_;
 	int port_;
 	const Router& router_;
+
+	Epoll epoll_;
+	std::unordered_map<int, ClientConnection> active_connections_;
+	std::mutex connections_mutex_;
+	ThreadPool thread_pool_;
 };
 
 } // namespace http

@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <stdexcept>
 
@@ -85,10 +86,26 @@ Socket Socket::accept() {
 	const int client_fd = ::accept(file_descriptor_, nullptr, nullptr);
 
 	if (client_fd == -1) {
+		if(errno == EAGAIN || errno == EWOULDBLOCK){
+			return Socket(); // socket with fd = -1
+		}
+
 		throw std::runtime_error("Failed to accept connection");
 	}
 
 	return Socket(client_fd);
+}
+
+void Socket::setNonBlocking(){
+	int flags = fcntl(file_descriptor_, F_GETFL, 0);
+
+	if(flags = -1){
+		throw std::runtime_error("Failed to get socket flags");
+	}
+
+	if(fcntl(file_descriptor_, F_GETFL, flags | O_NONBLOCK) == -1){
+		throw std::runtime_error("Failed to set non-blocking flag");
+	}
 }
 
 } // namespace http
