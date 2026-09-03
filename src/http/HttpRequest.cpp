@@ -69,4 +69,8 @@ bool HttpRequest::hasJson() const noexcept {
     return has_json_;
 }
 
+void HttpRequest::setMethod(HttpMethod method) {
+    method_ = method;
+}
+
 } // namespace http

@@ -34,6 +34,8 @@ class HttpRequest {
 	[[nodiscard]]
 	HttpMethod method() const noexcept;
 
+	void setMethod(HttpMethod method);
+
 	[[nodiscard]]
 	std::string_view target() const noexcept;
 
