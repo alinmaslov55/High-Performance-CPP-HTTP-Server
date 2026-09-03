@@ -1,4 +1,4 @@
-#include "network/Epoll.hpp"
+#include "http/network/Epoll.hpp"
 
 #include <stdexcept>
 #include <unistd.h>
@@ -42,7 +42,7 @@ void Epoll::remove(int fd){
     }
 }
 
-std::vector<epoll_event> Epoll::wait(int timeoutMs = -1){
+std::vector<epoll_event> Epoll::wait(int timeoutMs){
     std::vector<epoll_event> events(MAX_EVENTS);
 
     const int num_events = ::epoll_wait(epoll_fd_, events.data(), MAX_EVENTS, timeoutMs);

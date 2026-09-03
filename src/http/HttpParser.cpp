@@ -83,7 +83,7 @@ ParseResult HttpParser::parse(std::string_view data, HttpRequest &request) {
 			}
 
 			const std::string_view headers =
-				remaining.substr(0, headersEnd + 2);
+				remaining.substr(0, headersEnd + 4);
 
 			const ParseResult result = parseHeaders(headers, request);
 

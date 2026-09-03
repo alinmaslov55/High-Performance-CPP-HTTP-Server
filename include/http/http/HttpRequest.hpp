@@ -3,6 +3,8 @@
 
 #include <http/http/HttpHeaders.hpp>
 
+#include <nlohmann/json.hpp>
+
 #include <string>
 #include <string_view>
 #include <vector>
@@ -61,6 +63,14 @@ class HttpRequest {
 
 	void setPath(std::string path);
 	void addQuery(std::string key, std::string value);
+
+	void setJson(nlohmann::json json_body);
+
+	[[nodiscard]]
+	const nlohmann::json& json() const;
+
+	[[nodiscard]]
+	bool hasJson() const noexcept;
   private:
 	HttpMethod method_ = HttpMethod::UNKNOWN;
 
@@ -72,6 +82,9 @@ class HttpRequest {
 	std::string body_;
 	std::string path_;
 	std::unordered_map<std::string, std::string> queries_;
+
+	nlohmann::json json_body_;
+	bool has_json_{false};
 };
 
 } // namespace http

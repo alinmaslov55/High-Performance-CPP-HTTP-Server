@@ -56,4 +56,17 @@ void HttpRequest::addQuery(std::string key, std::string value) {
     queries_.emplace(std::move(key), std::move(value));
 }
 
+void HttpRequest::setJson(nlohmann::json json_body) {
+    json_body_ = std::move(json_body);
+    has_json_ = true;
+}
+
+const nlohmann::json& HttpRequest::json() const {
+    return json_body_;
+}
+
+bool HttpRequest::hasJson() const noexcept {
+    return has_json_;
+}
+
 } // namespace http

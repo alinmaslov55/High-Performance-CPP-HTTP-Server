@@ -13,9 +13,12 @@ namespace http {
 
 class Router {
 public:
-    using Handler = std::function<HttpResponse(const HttpRequest&)>;
+    using Handler = std::function<void(HttpRequest&, HttpResponse&)>;
+    using Middleware = std::function<bool(HttpRequest&, HttpResponse&)>;
 
     Router() = default;
+
+    void use(Middleware middleware);
 
     void get(std::string path, Handler handler);
 
@@ -30,7 +33,7 @@ public:
     void head(std::string path, Handler handler);
 
     [[nodiscard]]
-    HttpResponse handle(const HttpRequest& request) const;
+    HttpResponse handle(HttpRequest& request) const;
 
     // only for small files { .css .html .js}
     void serveFiles(std::string mountPoint, std::string directory);
@@ -43,6 +46,7 @@ private:
     };
 
     std::vector<Route> routes_;
+    std::vector<Middleware> global_middlewares_;
 };
 
 } // namespace http

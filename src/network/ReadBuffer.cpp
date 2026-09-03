@@ -25,7 +25,7 @@ void ReadBuffer::consume(std::size_t size) {
 	}
 
 	// TODO solve O(n) complexity
-	buffer_.erase(buffer_.begin(), buffer_.end() + size);
+	buffer_.erase(buffer_.begin(), buffer_.begin() + size);
 }
 
 void ReadBuffer::clear() noexcept { buffer_.clear(); }

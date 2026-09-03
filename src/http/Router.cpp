@@ -101,8 +101,16 @@ void Router::head(
 }
 
 HttpResponse Router::handle(
-	const HttpRequest& request
+	HttpRequest& request
 ) const {
+	HttpResponse response;
+
+	for(const auto& middleware: global_middlewares_){
+		if(!middleware(request, response)){
+			return response;
+		}
+	}
+
 	bool pathFound = false;
 
 	for (const Route& route : routes_) {
@@ -110,7 +118,7 @@ HttpResponse Router::handle(
 		bool matches = route.isPrefix ? request.path().rfind(route.path, 0) == 0
 			: route.path == request.path();
 
-		if (matches) {
+		if (!matches) {
 			continue;
 		}
 		pathFound = true;
@@ -118,10 +126,12 @@ HttpResponse Router::handle(
 		if (route.method != request.method()) {
 			continue;
 		}
-		return route.handler(request);
+
+		route.handler(request, response);
+
+		return response;
 	}
 
-	HttpResponse response;
 	if (pathFound) {
 		response.setStatus(
 			HttpStatus::MethodNotAllowed
@@ -142,10 +152,9 @@ HttpResponse Router::handle(
 }
 
 void Router::serveFiles(std::string mountPoint, std::string directory){
-	if (mountPoint.back() != '/') mountPoint += '/';
+    if (mountPoint.back() != '/') mountPoint += '/';
     
-    Handler fileHandler = [mountPoint, directory](const HttpRequest& req) -> HttpResponse {
-        HttpResponse res;
+    Handler fileHandler = [mountPoint, directory](HttpRequest& req, HttpResponse& res) {
         
         std::string_view reqPath = req.path();
         std::string relativePath = std::string(reqPath.substr(mountPoint.size()));
@@ -153,7 +162,7 @@ void Router::serveFiles(std::string mountPoint, std::string directory){
         if (relativePath.find("..") != std::string::npos) {
             res.setStatus(HttpStatus::Forbidden);
             res.setBody("403 Forbidden");
-            return res;
+            return;
         }
 
         fs::path fullPath = fs::path(directory) / relativePath;
@@ -163,7 +172,7 @@ void Router::serveFiles(std::string mountPoint, std::string directory){
         if (!file.is_open()) {
             res.setStatus(HttpStatus::NotFound);
             res.setBody("404 File Not Found");
-            return res;
+            return;
         }
 
         std::streamsize size = file.tellg();
@@ -178,11 +187,12 @@ void Router::serveFiles(std::string mountPoint, std::string directory){
             res.setStatus(HttpStatus::InternalServerError);
             res.setBody("500 Internal Server Error");
         }
-
-        return res;
     };
 
     routes_.push_back(Route{HttpMethod::GET, std::move(mountPoint), std::move(fileHandler), true});
+}
+void Router::use(Middleware middleware){
+	global_middlewares_.push_back(std::move(middleware));
 }
 
 } // namespace http

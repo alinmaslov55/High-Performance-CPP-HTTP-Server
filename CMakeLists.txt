@@ -32,6 +32,8 @@ add_executable(http_server
     src/network/ReadBuffer.cpp
     src/network/TcpServer.cpp
     src/network/Socket.cpp
+    src/network/Epoll.cpp
+    src/concurrency/ThreadPool.cpp
 )
 target_link_libraries(http_server
     PRIVATE

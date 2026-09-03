@@ -6,6 +6,8 @@
 #include <fcntl.h>
 
 #include <stdexcept>
+#include <cstring>
+#include <string>
 
 namespace http {
 
@@ -96,16 +98,22 @@ Socket Socket::accept() {
 	return Socket(client_fd);
 }
 
-void Socket::setNonBlocking(){
-	int flags = fcntl(file_descriptor_, F_GETFL, 0);
-
-	if(flags = -1){
-		throw std::runtime_error("Failed to get socket flags");
-	}
-
-	if(fcntl(file_descriptor_, F_GETFL, flags | O_NONBLOCK) == -1){
-		throw std::runtime_error("Failed to set non-blocking flag");
-	}
+void Socket::setNonBlocking() {
+    int flags = fcntl(file_descriptor_, F_GETFL, 0);
+    
+    if (flags == -1) {
+        std::string errorMsg = "Failed to get socket flags. FD: " 
+                             + std::to_string(file_descriptor_) 
+                             + ", Error: " + std::strerror(errno);
+        throw std::runtime_error(errorMsg);
+    }
+    
+    if (fcntl(file_descriptor_, F_SETFL, flags | O_NONBLOCK) == -1) {
+         std::string errorMsg = "Failed to set non-blocking flag. FD: " 
+                             + std::to_string(file_descriptor_) 
+                             + ", Error: " + std::strerror(errno);
+        throw std::runtime_error(errorMsg);
+    }
 }
 
 } // namespace http
