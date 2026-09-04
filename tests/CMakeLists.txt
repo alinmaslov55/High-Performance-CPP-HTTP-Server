@@ -5,6 +5,7 @@ add_executable(http_server_tests
     http/HttpResponseTests.cpp
     http/HttpUtilsTests.cpp
     http/RouterTests.cpp
+    concurrency/ThreadPoolTests.cpp
 )
 
 target_link_libraries(http_server_tests
