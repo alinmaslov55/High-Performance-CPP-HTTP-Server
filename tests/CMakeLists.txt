@@ -1,5 +1,10 @@
 add_executable(http_server_tests
-    HttpRequestTest.cpp
+    http/HttpHeadersTests.cpp
+    http/HttpParserTests.cpp
+    http/HttpRequestTests.cpp
+    http/HttpResponseTests.cpp
+    http/HttpUtilsTests.cpp
+    http/RouterTests.cpp
 )
 
 target_link_libraries(http_server_tests
