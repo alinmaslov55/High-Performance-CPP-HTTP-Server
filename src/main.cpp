@@ -25,15 +25,15 @@ int main() {
     router.serveFiles("/static/", "./public");
 
     router.use([&](HttpRequest& req, HttpResponse& res) -> bool {
-        std::cout << "[LOG] " << methodToString(req.method()) << " " 
+        std::cout << "[LOG] " << methodToString(req.method()) << " "
                   << req.path() << '\n';
-        
+
         return true;
     });
 
     router.use([](HttpRequest& req, HttpResponse& res) -> bool {
         std::string_view contentType = req.header("Content-Type");
-        
+
         if (contentType.find("application/json") != std::string_view::npos) {
             if (!req.body().empty()) {
                 try {
@@ -46,7 +46,7 @@ int main() {
                     res.setStatus(HttpStatus::BadRequest);
                     res.setHeader("Content-Type", "application/json");
                     res.setBody(errorJson.dump());
-                    
+
                     return false;
                 }
             }
@@ -70,7 +70,7 @@ int main() {
         if (!req.hasJson()) {
             res.setStatus(HttpStatus::BadRequest);
             res.setHeader("Content-Type", "application/json");
-            res.setBody("{\"error\": \"Expected application/json Content-Type\"}");
+            res.setBody("{\"error\": \"Expected application/json\"}");
             return;
         }
 
@@ -79,13 +79,10 @@ int main() {
         std::string name = requestJson.value("name", "Unknown");
         int age = requestJson.value("age", 0);
 
-        json responseJson;
-        responseJson["status"] = "success";
-        responseJson["message"] = "User " + name + " created!";
-        responseJson["data"] = {
-            {"name", name},
-            {"age", age},
-            {"id", 42}
+        json responseJson = {
+            {"status", "success"},
+            {"message", "User " + name + " created!"},
+            {"data", {{"name", name}, {"age", age}, {"id", 42}}}
         };
 
         res.setStatus(HttpStatus::Created);

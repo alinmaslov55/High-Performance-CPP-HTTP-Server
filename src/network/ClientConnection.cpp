@@ -1,3 +1,4 @@
+#include <chrono>
 #include <http/network/ClientConnection.hpp>
 
 #include <cerrno>
@@ -87,5 +88,16 @@ void ClientConnection::consumeParsedRequest() {
 
 	parser_.reset();
 }
+
+void ClientConnection::updateActivity() {
+	lastActivity_ = std::chrono::steady_clock::now();
+}
+
+bool ClientConnection::isIdle(int timeoutSeconds) const {
+	auto now = std::chrono::steady_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - lastActivity_).count();
+	return duration > timeoutSeconds;
+}
+
 
 } // namespace http

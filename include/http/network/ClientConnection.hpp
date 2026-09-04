@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <string>
 #include <string_view>
+#include <chrono>
 
 #include "http/http/HttpParser.hpp"
 #include "http/http/HttpRequest.hpp"
@@ -53,10 +54,15 @@ class ClientConnection {
 	ParseResult parseRequest(HttpRequest &request);
 	void consumeParsedRequest();
 
+	void updateActivity();
+
+	[[nodiscard]]
+	bool isIdle(int timeoutSeconds) const;
   private:
 	Socket socket_;
 	ReadBuffer readBuffer_;
 	HttpParser parser_;
+	std::chrono::steady_clock::time_point lastActivity_ = std::chrono::steady_clock::now();
 };
 
 } // namespace http

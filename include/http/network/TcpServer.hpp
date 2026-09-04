@@ -39,13 +39,15 @@ class TcpServer {
 	void handleNewConnection();
 	void handleClientData(int client_fd);
 	void disconnectClient(int client_fd);
+	void sweepIdleConnections();
+	static constexpr int CONNECTION_TIMEOUT_SECONDS = 30;
 
 	Socket server_socket_;
 	int port_;
 	const Router& router_;
 
 	Epoll epoll_;
-	std::unordered_map<int, ClientConnection> active_connections_;
+	std::unordered_map<int, std::shared_ptr<ClientConnection>> active_connections_;
 	std::mutex connections_mutex_;
 	ThreadPool thread_pool_;
 };

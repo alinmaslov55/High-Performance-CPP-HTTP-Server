@@ -1,5 +1,6 @@
 #include <http/http/Router.hpp>
 
+#include <string>
 #include <utility>
 #include <fstream>
 #include <filesystem>
@@ -22,10 +23,7 @@ namespace utils{
 	}
 } // namespace utils
 
-void Router::get(
-	std::string path,
-	Handler handler
-) {
+void Router::get( std::string path, Handler handler ) {
 	routes_.push_back(
 		Route{
 			HttpMethod::GET,
@@ -35,10 +33,19 @@ void Router::get(
 	);
 }
 
-void Router::post(
-	std::string path,
-	Handler handler
-) {
+void Router::get(std::string path, std::vector<Middleware> middlewares, Handler handler) {
+	routes_.push_back(
+		Route{
+			HttpMethod::GET,
+			std::move(path),
+			std::move(handler),
+			false,
+			std::move(middlewares)
+		}
+	);
+}
+
+void Router::post( std::string path, Handler handler ) {
 	routes_.push_back(
 		Route{
 			HttpMethod::POST,
@@ -48,10 +55,19 @@ void Router::post(
 	);
 }
 
-void Router::put(
-	std::string path,
-	Handler handler
-) {
+void Router::post( std::string path, std::vector<Middleware> middlewares, Handler handler ) {
+	routes_.push_back(
+		Route{
+			HttpMethod::POST,
+			std::move(path),
+			std::move(handler),
+			false,
+			std::move(middlewares)
+		}
+	);
+}
+
+void Router::put( std::string path, Handler handler ) {
 	routes_.push_back(
 		Route{
 			HttpMethod::PUT,
@@ -61,10 +77,19 @@ void Router::put(
 	);
 }
 
-void Router::patch(
-	std::string path,
-	Handler handler
-) {
+void Router::put( std::string path, std::vector<Middleware> middlewares, Handler handler ) {
+	routes_.push_back(
+		Route{
+			HttpMethod::PUT,
+			std::move(path),
+			std::move(handler),
+			false,
+			std::move(middlewares)
+		}
+	);
+}
+
+void Router::patch( std::string path, Handler handler ) {
 	routes_.push_back(
 		Route{
 			HttpMethod::PATCH,
@@ -74,10 +99,19 @@ void Router::patch(
 	);
 }
 
-void Router::del(
-	std::string path,
-	Handler handler
-) {
+void Router::patch( std::string path, std::vector<Middleware> middlewares, Handler handler ) {
+	routes_.push_back(
+		Route{
+			HttpMethod::PATCH,
+			std::move(path),
+			std::move(handler),
+			false,
+			std::move(middlewares)
+		}
+	);
+}
+
+void Router::del( std::string path, Handler handler ) {
 	routes_.push_back(
 		Route{
 			HttpMethod::DELETE,
@@ -87,10 +121,19 @@ void Router::del(
 	);
 }
 
-void Router::head(
-	std::string path,
-	Handler handler
-) {
+void Router::del( std::string path, std::vector<Middleware> middlewares, Handler handler ) {
+	routes_.push_back(
+		Route{
+			HttpMethod::DELETE,
+			std::move(path),
+			std::move(handler),
+			false,
+			std::move(middlewares)
+		}
+	);
+}
+
+void Router::head( std::string path, Handler handler ) {
 	routes_.push_back(
 		Route{
 			HttpMethod::HEAD,
@@ -100,9 +143,19 @@ void Router::head(
 	);
 }
 
-HttpResponse Router::handle(
-	HttpRequest& request
-) const {
+void Router::head( std::string path, std::vector<Middleware> middlewares, Handler handler ) {
+	routes_.push_back(
+		Route{
+			HttpMethod::HEAD,
+			std::move(path),
+			std::move(handler),
+			false,
+			std::move(middlewares)
+		}
+	);
+}
+
+HttpResponse Router::handle( HttpRequest& request ) const {
 	HttpResponse response;
 
 	for(const auto& middleware: global_middlewares_){
@@ -127,8 +180,17 @@ HttpResponse Router::handle(
 			continue;
 		}
 
-		route.handler(request, response);
+		bool middleware_passed = true;
+		for(const auto& middleware: route.middlewares){
+			if(!middleware(request, response)){
+				middleware_passed = false;
+				break;
+			}
+		}
 
+		if(middleware_passed){
+			route.handler(request, response);
+		}
 		return response;
 	}
 
@@ -153,12 +215,12 @@ HttpResponse Router::handle(
 
 void Router::serveFiles(std::string mountPoint, std::string directory){
     if (mountPoint.back() != '/') mountPoint += '/';
-    
+
     Handler fileHandler = [mountPoint, directory](HttpRequest& req, HttpResponse& res) {
-        
+
         std::string_view reqPath = req.path();
         std::string relativePath = std::string(reqPath.substr(mountPoint.size()));
-        
+
         if (relativePath.find("..") != std::string::npos) {
             res.setStatus(HttpStatus::Forbidden);
             res.setBody("403 Forbidden");
@@ -168,7 +230,7 @@ void Router::serveFiles(std::string mountPoint, std::string directory){
         fs::path fullPath = fs::path(directory) / relativePath;
 
         std::ifstream file(fullPath, std::ios::binary | std::ios::ate);
-        
+
         if (!file.is_open()) {
             res.setStatus(HttpStatus::NotFound);
             res.setBody("404 File Not Found");
@@ -177,7 +239,7 @@ void Router::serveFiles(std::string mountPoint, std::string directory){
 
         std::streamsize size = file.tellg();
         file.seekg(0, std::ios::beg);
-        
+
         std::string buffer(size, '\0');
         if (file.read(buffer.data(), size)) {
             res.setStatus(HttpStatus::OK);

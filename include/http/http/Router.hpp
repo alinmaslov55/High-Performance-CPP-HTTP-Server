@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 namespace http {
 
@@ -21,28 +22,31 @@ public:
     void use(Middleware middleware);
 
     void get(std::string path, Handler handler);
-
     void post(std::string path, Handler handler);
-
     void put(std::string path, Handler handler);
-
     void patch(std::string path, Handler handler);
-
     void del(std::string path, Handler handler);
-
     void head(std::string path, Handler handler);
+
+    void get(std::string path, std::vector<Middleware> middlewares, Handler handler);
+    void post(std::string path, std::vector<Middleware> middlewares, Handler handler);
+    void put(std::string path, std::vector<Middleware> middlewares, Handler handler);
+    void patch(std::string path, std::vector<Middleware> middlewares, Handler handler);
+    void del(std::string path, std::vector<Middleware> middlewares, Handler handler);
+    void head(std::string path, std::vector<Middleware> middlewares, Handler handler);
 
     [[nodiscard]]
     HttpResponse handle(HttpRequest& request) const;
 
-    // only for small files { .css .html .js}
     void serveFiles(std::string mountPoint, std::string directory);
+
 private:
-    struct Route{
+    struct Route {
         HttpMethod method;
         std::string path;
         Handler handler;
         bool isPrefix{false};
+        std::vector<Middleware> middlewares{};
     };
 
     std::vector<Route> routes_;
