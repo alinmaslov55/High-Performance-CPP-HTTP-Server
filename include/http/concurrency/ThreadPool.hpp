@@ -23,13 +23,18 @@ public:
     void enqueue(std::function<void()> task);
 
 private:
-
+    static constexpr std::size_t CAPACITY = 1024;
+    std::vector<std::function<void()>> ring_buffer_;
     std::vector<std::thread> workers_;
-    std::queue<std::function<void()>> tasks_;
+    std::size_t head_{0};
+    std::size_t tail_{0};
 
-    std::mutex queue_mutex_;
-    std::condition_variable condition_;
-    bool stop_;
+    std::atomic_flag lock_ = ATOMIC_FLAG_INIT;
+
+    std::counting_semaphore<> tasks_available_{0};
+    std::counting_semaphore<> space_available_{CAPACITY};
+
+    std::atomic<bool> stop_{false};
 };
 
 } // namespace concurrency
