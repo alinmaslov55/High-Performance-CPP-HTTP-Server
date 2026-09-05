@@ -2,6 +2,7 @@
 #include "http/http/Router.hpp"
 #include <nlohmann/json.hpp>
 #include <iostream>
+#include <csignal>
 
 using json = nlohmann::json;
 using namespace http;
@@ -20,6 +21,8 @@ std::string methodToString(HttpMethod method) {
 }
 
 int main() {
+    ::signal(SIGPIPE, SIG_IGN);
+
     Router router;
 
     router.serveFiles("/static/", "./public");

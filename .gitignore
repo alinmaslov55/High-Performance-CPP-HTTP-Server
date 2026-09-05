@@ -1,6 +1,7 @@
 # Added by Dev
 local_notes.txt
 .vscode
+build_release/
 
 # Prerequisites
 *.d

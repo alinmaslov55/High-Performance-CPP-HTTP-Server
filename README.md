@@ -20,8 +20,17 @@ cd build
 ctest --output-on-failure
 ```
 
+### Compiling for maximum performance
+
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release -S . -B build_release
+
+cmake --build build_release
+```
+
 ## Formatting
 
 ```bash
 find . \( -name "*.cpp" -o -name "*.hpp" \) -exec clang-format -i {} +
 ```
+

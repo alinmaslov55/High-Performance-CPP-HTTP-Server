@@ -78,7 +78,7 @@ void TcpServer::handleNewConnection(){
 			active_connections_[client_fd] = std::make_shared<ClientConnection>(std::move(client_socket));
 		}
 
-        epoll_.add(client_fd, EPOLLIN | EPOLLET);
+        epoll_.add(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
 	}
 }
 
@@ -94,52 +94,59 @@ void TcpServer::handleClientData(int client_fd){
     std::shared_ptr<ClientConnection>& connection = it->second;
 	connections_mutex_.unlock();
 
-    if (!connection->read()) {
-        disconnectClient(client_fd);
-        return;
-    }
-
-    HttpRequest request;
-    while (true) {
-        ParseResult result = connection->parseRequest(request);
-
-        if (result == ParseResult::Incomplete) {
-			epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
-            break;
-        }
-
-        HttpResponse response;
-
-        if (result == ParseResult::Invalid) {
-            response.setStatus(HttpStatus::BadRequest);
-            response.setBody("400 Bad Request");
-            response.setHeader("Connection", "close");
-            connection->send(response.serialize());
+    try{
+        connection->updateActivity();
+        
+        if (!connection->read()) {
             disconnectClient(client_fd);
             return;
         }
-
-        if (result == ParseResult::Complete) {
-            bool keepAlive = (request.version() == "HTTP/1.1") &&
-                !HttpHeaders::equalsIgnoreCase(request.header("Connection"), "close");
-
-            response = router_.handle(request);
-
-            response.setHeader("Connection", keepAlive ? "keep-alive" : "close");
-
-            connection->send(response.serialize());
-            connection->consumeParsedRequest();
-
-            if (!keepAlive) {
+        
+        HttpRequest request;
+        while (true) {
+            ParseResult result = connection->parseRequest(request);
+            
+            if (result == ParseResult::Incomplete) {
+                epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
+                break;
+            }
+            
+            HttpResponse response;
+            
+            if (result == ParseResult::Invalid) {
+                response.setStatus(HttpStatus::BadRequest);
+                response.setBody("400 Bad Request");
+                response.setHeader("Connection", "close");
+                connection->send(response.serialize());
                 disconnectClient(client_fd);
                 return;
             }
+            
+            if (result == ParseResult::Complete) {
+                bool keepAlive = (request.version() == "HTTP/1.1") &&
+                !HttpHeaders::equalsIgnoreCase(request.header("Connection"), "close");
+
+                response = router_.handle(request);
+
+                response.setHeader("Connection", keepAlive ? "keep-alive" : "close");
+                
+                connection->send(response.serialize());
+                connection->consumeParsedRequest();
+
+                if (!keepAlive) {
+                    disconnectClient(client_fd);
+                    return;
+                }
+            }
         }
+    }catch(const std::exception& e){
+        std::cerr << "[ERROR] Exception while handling client FD " << client_fd << ": " << e.what() << '\n';
+        disconnectClient(client_fd);
     }
 }
 
 void TcpServer::disconnectClient(int client_fd){
-	std::lock_guard<std::mutex> lock(connections_mutex_);
+    std::lock_guard<std::mutex> lock(connections_mutex_);
 	epoll_.remove(client_fd);
 	active_connections_.erase(client_fd);
 }
