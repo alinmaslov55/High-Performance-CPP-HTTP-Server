@@ -29,7 +29,7 @@ class HttpRequest {
   public:
 	HttpRequest() = default;
 
-	HttpRequest(HttpMethod method, std::string target, std::string version);
+	HttpRequest(HttpMethod method, std::string_view target, std::string_view version);
 
 	[[nodiscard]]
 	HttpMethod method() const noexcept;
@@ -63,7 +63,7 @@ class HttpRequest {
 	[[nodiscard]]
 	std::string_view query(std::string_view key) const noexcept;
 
-	void setPath(std::string path);
+	void setPath(std::string_view path);
 	void addQuery(std::string key, std::string value);
 
 	void setJson(nlohmann::json json_body);
@@ -76,13 +76,13 @@ class HttpRequest {
   private:
 	HttpMethod method_ = HttpMethod::UNKNOWN;
 
-	std::string target_;
-	std::string version_;
+	std::string_view target_;
+	std::string_view version_;
+	std::string_view path_;
 
 	HttpHeaders headers_;
 
 	std::string body_;
-	std::string path_;
 	std::unordered_map<std::string, std::string> queries_;
 
 	nlohmann::json json_body_;

@@ -4,10 +4,10 @@
 
 namespace http {
 
-HttpRequest::HttpRequest(HttpMethod method, std::string target,
-						 std::string version)
-	: method_(method), target_(std::move(target)),
-	  version_(std::move(version)) {}
+HttpRequest::HttpRequest(HttpMethod method, std::string_view target,
+						 std::string_view version)
+	: method_(method), target_(target),
+	  version_(version) {}
 
 HttpMethod HttpRequest::method() const noexcept { return method_; }
 
@@ -48,8 +48,8 @@ std::string_view HttpRequest::query(std::string_view key) const noexcept {
     return {};
 }
 
-void HttpRequest::setPath(std::string path) { 
-    path_ = std::move(path); 
+void HttpRequest::setPath(std::string_view path) { 
+    path_ = path; 
 }
 
 void HttpRequest::addQuery(std::string key, std::string value) {

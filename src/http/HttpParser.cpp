@@ -468,16 +468,16 @@ ParseResult HttpParser::parseRequestLine(std::string_view data,
 	}
 
 	request =
-		HttpRequest(parsedMethod, std::string(target), std::string(version));
+		HttpRequest(parsedMethod, target, version);
 
 	const std::size_t questionMark = target.find('?');
 
 	if(questionMark == std::string_view::npos){
-		request.setPath(std::string(target));
+		request.setPath(target);
 		return ParseResult::Complete;
 	}
 
-	request.setPath(std::string(target.substr(0, questionMark)));
+	request.setPath(target.substr(0, questionMark));
         
 	std::string_view queryString = target.substr(questionMark + 1);
 	std::size_t start = 0;
