@@ -116,4 +116,11 @@ void Socket::setNonBlocking() {
     }
 }
 
+void Socket::setReusePort() {
+	int reuse = 1;
+	if (setsockopt(file_descriptor_, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse)) == -1) {
+		throw std::runtime_error("Failed to set SO_REUSEPORT");
+	}
+}
+
 } // namespace http

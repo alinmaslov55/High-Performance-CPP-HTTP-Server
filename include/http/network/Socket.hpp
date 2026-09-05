@@ -50,8 +50,15 @@ class Socket {
 	 * @param port The port number to bind to
 	 * @throws std::runtime_errpr
 	 */
-	void setNonBlocking();
 	void bind(uint16_t port);
+	
+	/**
+	 * @brief Sets the SO_REUSEPORT socket option to allow multiple sockets to bind to the same port
+	 * @throws std::runtime_error
+	 */
+	void setReusePort();
+	
+	void setNonBlocking();
 	/**
 	 * @brief Marks socket as listening
 	 * @param backlog The port max length to which to which the queue of pending

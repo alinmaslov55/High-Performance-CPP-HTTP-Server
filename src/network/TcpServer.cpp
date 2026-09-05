@@ -14,56 +14,62 @@
 
 namespace http {
 
-const char RESPONSE[] = "HTTP/1.1 200 OK\r\n"
-						"Content-Type: text/plain\r\n"
-						"Content-Length: 12\r\n"
-						"Connection: close\r\n"
-						"\r\n"
-						"Hello World!";
-
 TcpServer::TcpServer(int port, const Router& router)
-	: server_socket_(Socket::create_tcp()),
-	port_(port),
+	: port_(port),
 	router_(router),
-	thread_pool_(
-		std::thread::hardware_concurrency() > 0 ?
-		std::thread::hardware_concurrency() : DEFAULT_THREADS
-	)
-{
-	server_socket_.setReuseAddress();
-	server_socket_.bind(port_);
-	server_socket_.setNonBlocking();
-	server_socket_.listen();
-
-	epoll_.add(server_socket_.fd(), EPOLLIN | EPOLLET);
-}
+	num_threads_(std::thread::hardware_concurrency() > 0 ?
+		std::thread::hardware_concurrency() : DEFAULT_THREADS)
+{}
 
 void TcpServer::start() {
-	std::cout << "[INFO] Async Event Loop Started\n";
+	std::cout << "[INFO] Booting " << num_threads_ << " isolated Epoll loops (SO_REUSEPORT)...\n";
 
-	while (true) {
-		auto events = epoll_.wait(1000);
+    for (int i = 0; i < num_threads_; ++i) {
+        threads_.emplace_back([this]() {
+            Worker worker(port_, router_);
+            worker.run();
+        });
+    }
 
-		for(const auto& event: events){
-			if(event.data.fd == server_socket_.fd()){
-				handleNewConnection();
-				continue;
-			}
-
-			if(event.events & (EPOLLERR | EPOLLHUP)){
-				disconnectClient(event.data.fd);
-			}else if(event.events & EPOLLIN){
-				int client_fd = event.data.fd;
-				thread_pool_.enqueue([this, client_fd](){
-					handleClientData(client_fd);
-				});
-			}
-		}
-		sweepIdleConnections();
-	}
+    for (auto& t : threads_) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
 }
 
-void TcpServer::handleNewConnection(){
+TcpServer::Worker::Worker(int port, const Router& router)
+    : server_socket_(Socket::create_tcp()),
+      router_(router)
+{
+    server_socket_.setReuseAddress();
+    server_socket_.setReusePort();
+    server_socket_.bind(port);
+    server_socket_.setNonBlocking();
+    server_socket_.listen(128);
+
+    epoll_.add(server_socket_.fd(), EPOLLIN | EPOLLET);
+}
+
+void TcpServer::Worker::run() {
+    while (true) {
+        auto events = epoll_.wait(1000);
+
+        for (const auto& event : events) {
+            if (event.data.fd == server_socket_.fd()) {
+                handleNewConnection();
+            } else if(event.events & (EPOLLERR | EPOLLHUP)) {
+                disconnectClient(event.data.fd);
+            } else if (event.events & EPOLLIN) {
+                handleClientData(event.data.fd);
+            }
+        }
+
+        sweepIdleConnections();
+    }
+}
+
+void TcpServer::Worker::handleNewConnection(){
 	while(true){
 		Socket client_socket = server_socket_.accept();
 
@@ -73,26 +79,18 @@ void TcpServer::handleNewConnection(){
 
         int client_fd = client_socket.fd();
         client_socket.setNonBlocking();
-        {
-			std::unique_lock<std::mutex> lock(connections_mutex_);
-			active_connections_[client_fd] = std::make_shared<ClientConnection>(std::move(client_socket));
-		}
-
+		active_connections_[client_fd] = std::make_shared<ClientConnection>(std::move(client_socket));
         epoll_.add(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
 	}
 }
 
-void TcpServer::handleClientData(int client_fd){
-	connections_mutex_.lock();
-
+void TcpServer::Worker::handleClientData(int client_fd){
 	auto it = active_connections_.find(client_fd);
     if (it == active_connections_.end()){
-		connections_mutex_.unlock();
 		return;
 	}
 
     std::shared_ptr<ClientConnection>& connection = it->second;
-	connections_mutex_.unlock();
 
     try{
         connection->updateActivity();
@@ -145,24 +143,19 @@ void TcpServer::handleClientData(int client_fd){
     }
 }
 
-void TcpServer::disconnectClient(int client_fd){
-    std::lock_guard<std::mutex> lock(connections_mutex_);
+void TcpServer::Worker::disconnectClient(int client_fd){
 	epoll_.remove(client_fd);
 	active_connections_.erase(client_fd);
 }
 
-void TcpServer::sweepIdleConnections() {
+void TcpServer::Worker::sweepIdleConnections() {
     std::vector<int> stale_fds;
 
-    {
-        std::lock_guard<std::mutex> lock(connections_mutex_);
-        for (const auto& [fd, client] : active_connections_) {
-            if (client->isIdle(CONNECTION_TIMEOUT_SECONDS)) {
-                stale_fds.push_back(fd);
-            }
+    for (const auto& [fd, client] : active_connections_) {
+        if (client->isIdle(CONNECTION_TIMEOUT_SECONDS)) {
+            stale_fds.push_back(fd);
         }
     }
-
 
     for (int fd : stale_fds) {
         std::cout << "[LOG] Disconnecting idle client FD: " << fd << '\n';
