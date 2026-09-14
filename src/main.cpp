@@ -1,11 +1,5 @@
+#include "http/App.hpp"
 #include "http/network/TcpServer.hpp"
-#include "http/http/Router.hpp"
-#include "http/database/MongoPool.hpp"
-#include "http/controllers/UserController.hpp"
-
-#include <nlohmann/json.hpp>
-#include <bsoncxx/json.hpp>
-#include <bsoncxx/builder/stream/document.hpp>
 
 #include <iostream>
 #include <csignal>
@@ -24,19 +18,13 @@ int main() {
     std::signal(SIGTERM, handleSignal);
     std::signal(SIGINT, handleSignal);
 
-    mongocxx::instance instance{};
-    db::MongoPool db_pool("mongodb://localhost:27017");
+    AppConfiguration config{
+        .port = 8080,
+        .db_uri = "mongodb://localhost:27017"
+    };
 
-    Router router;
-
-    router.serveFiles("/static/", "./public");
-
-    controllers::UserController user_controller(db_pool);
-    user_controller.registerRoutes(router);
-
-    std::cout << "Starting server on port 8080... (Press Ctrl+C to stop)\n";
-    TcpServer server(8080, router);
-    server.start();
+    App app(config);
+    app.run();
 
     std::cout << "Server shutdown complete\n";
     return 0;
