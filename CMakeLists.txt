@@ -38,6 +38,7 @@ add_library(http_server_core
     src/network/Epoll.cpp
     src/concurrency/ThreadPool.cpp
     src/database/MongoPool.cpp
+    src/controllers/UserController.cpp
 )
 target_include_directories(http_server_core PUBLIC include)
 target_link_libraries(http_server_core PUBLIC 
