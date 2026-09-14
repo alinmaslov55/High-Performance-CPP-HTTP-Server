@@ -19,6 +19,10 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(json)
 
+# mongodb driver search
+find_package(mongocxx REQUIRED)
+find_package(bsoncxx REQUIRED)
+
 # Main
 add_library(http_server_core
     src/http/HttpHeaders.cpp
@@ -33,9 +37,13 @@ add_library(http_server_core
     src/network/Socket.cpp
     src/network/Epoll.cpp
     src/concurrency/ThreadPool.cpp
+    src/database/MongoPool.cpp
 )
 target_include_directories(http_server_core PUBLIC include)
-target_link_libraries(http_server_core PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(http_server_core PUBLIC 
+    nlohmann_json::nlohmann_json
+$<IF:$<TARGET_EXISTS:mongo::mongocxx_shared>,mongo::mongocxx_shared,mongo::mongocxx_static>
+    $<IF:$<TARGET_EXISTS:mongo::bsoncxx_shared>,mongo::bsoncxx_shared,mongo::bsoncxx_static>)
 
 # main exec
 add_executable(http_server src/main.cpp)

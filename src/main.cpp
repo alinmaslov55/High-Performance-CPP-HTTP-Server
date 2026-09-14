@@ -1,6 +1,9 @@
 #include "http/network/TcpServer.hpp"
 #include "http/http/Router.hpp"
+#include "http/database/MongoPool.hpp"
 #include <nlohmann/json.hpp>
+#include <bsoncxx/json.hpp>
+#include <bsoncxx/builder/stream/document.hpp>
 #include <iostream>
 #include <csignal>
 
@@ -22,6 +25,9 @@ std::string methodToString(HttpMethod method) {
 
 int main() {
     ::signal(SIGPIPE, SIG_IGN);
+
+    mongocxx::instance instance{};
+    db::MongoPool db_pool("mongodb://localhost:27017");
 
     Router router;
 
@@ -69,28 +75,27 @@ int main() {
         res.setBody("{\"users\": [\"Alice\", \"Bob\", \"Charlie\"]}");
     });
 
-    router.post("/api/users", [](HttpRequest& req, HttpResponse& res) {
+    router.post("/api/users", [&db_pool](HttpRequest& req, HttpResponse& res) {
         if (!req.hasJson()) {
             res.setStatus(HttpStatus::BadRequest);
-            res.setHeader("Content-Type", "application/json");
-            res.setBody("{\"error\": \"Expected application/json\"}");
+            res.json("{\"error\": \"Invalid JSON\"}");
             return;
         }
 
-        const json& requestJson = req.json();
+        try {
+            auto conn = db_pool.acquire();
+            auto collection = (*conn)["test_db"]["users"];
 
-        std::string name = requestJson.value("name", "Unknown");
-        int age = requestJson.value("age", 0);
+            bsoncxx::document::value document = bsoncxx::from_json(req.json().dump());
+            collection.insert_one(document.view());
 
-        json responseJson = {
-            {"status", "success"},
-            {"message", "User " + name + " created!"},
-            {"data", {{"name", name}, {"age", age}, {"id", 42}}}
-        };
+            res.setStatus(HttpStatus::Created);
+            res.json("{\"status\": \"success\", \"message\": \"User added!\"}");
 
-        res.setStatus(HttpStatus::Created);
-        res.setHeader("Content-Type", "application/json");
-        res.setBody(responseJson.dump());
+        } catch (const std::exception& e) {
+            res.setStatus(HttpStatus::InternalServerError);
+            res.json(std::string("{\"error\": \"") + e.what() + "\"}");
+        }
     });
 
     try {

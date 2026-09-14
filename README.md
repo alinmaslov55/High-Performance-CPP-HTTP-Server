@@ -59,13 +59,18 @@ int main() {
 - **OS**: Linux - requires *epoll* and *SO_REUSEPORT* kernel features
 - **Compiler**: C++20 support
 - **Build System**: CMake >= 3.14
-- *Libraries are fetched by CMake*
+- **MongoDb Installed**
+- *Other Libraries are fetched by CMake*
 
 ## Build and Run Commands
 
 - Dev Build
 ```bash
 cmake -S . -B build
+
+# after mongodb(installed with vcpkg)
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=~/vcpkg/scripts/buildsystems/vcpkg.cmake
+
 cmake --build build
 ./build/http_server
 ```
