@@ -52,7 +52,7 @@ TcpServer::Worker::Worker(int port, const Router& router)
 }
 
 void TcpServer::Worker::run() {
-    while (true) {
+    while (TcpServer::isRunning()) {
         auto events = epoll_.wait(1000);
 
         for (const auto& event : events) {
@@ -67,6 +67,8 @@ void TcpServer::Worker::run() {
 
         sweepIdleConnections();
     }
+
+    std::cout << "[INFO] Worker thread to shut down \n";
 }
 
 void TcpServer::Worker::handleNewConnection(){
@@ -161,6 +163,14 @@ void TcpServer::Worker::sweepIdleConnections() {
         std::cout << "[LOG] Disconnecting idle client FD: " << fd << '\n';
         disconnectClient(fd);
     }
+}
+
+void TcpServer::stop(){
+    running_.store(false, std::memory_order_release);
+}
+
+bool TcpServer::isRunning(){
+    return running_.load(std::memory_order_acquire);
 }
 
 } // namespace http

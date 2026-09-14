@@ -7,8 +7,9 @@
 #include "http/network/ClientConnection.hpp"
 #include "http/concurrency/ThreadPool.hpp"
 
-#include <unordered_map>
+#include <atomic>
 #include <mutex>
+#include <unordered_map>
 
 namespace http {
 using namespace concurrency;
@@ -30,6 +31,16 @@ class TcpServer {
 	 * connections
 	 */
 	void start();
+
+	/**
+	 * @brief Stops the server and closes all active connections
+	 */
+	static void stop();
+
+	/**
+	 * @return true if the server is currently running, false otherwise
+	 */
+	static bool isRunning();
 
   private:
 	class Worker{
@@ -54,6 +65,7 @@ class TcpServer {
 	const Router& router_;
 	int num_threads_;
 	std::vector<std::thread> threads_;
+	inline static std::atomic<bool> running_{true};
 };
 
 } // namespace http

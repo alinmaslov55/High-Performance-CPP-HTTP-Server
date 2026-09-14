@@ -23,8 +23,15 @@ std::string methodToString(HttpMethod method) {
     }
 }
 
+void handleSignal(int signal){
+    std::cout << "[INFO] Signal " << signal << ". Stopping server\n";
+    TcpServer::stop();
+}
+
 int main() {
     ::signal(SIGPIPE, SIG_IGN);
+    std::signal(SIGTERM, handleSignal);
+    std::signal(SIGINT, handleSignal);
 
     mongocxx::instance instance{};
     db::MongoPool db_pool("mongodb://localhost:27017");
