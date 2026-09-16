@@ -36,8 +36,8 @@ void HttpRequest::setBody(std::string body) { body_ = std::move(body); }
 
 std::string_view HttpRequest::body() const noexcept { return body_; }
 
-std::string_view HttpRequest::path() const noexcept { 
-    return path_; 
+std::string_view HttpRequest::path() const noexcept {
+    return path_;
 }
 
 std::string_view HttpRequest::query(std::string_view key) const noexcept {
@@ -48,8 +48,8 @@ std::string_view HttpRequest::query(std::string_view key) const noexcept {
     return {};
 }
 
-void HttpRequest::setPath(std::string_view path) { 
-    path_ = path; 
+void HttpRequest::setPath(std::string_view path) {
+    path_ = path;
 }
 
 void HttpRequest::addQuery(std::string key, std::string value) {
@@ -71,6 +71,18 @@ bool HttpRequest::hasJson() const noexcept {
 
 void HttpRequest::setMethod(HttpMethod method) {
     method_ = method;
+}
+
+std::string HttpRequest::param(const std::string& key) const {
+    auto it = path_params_.find(key);
+    if (it != path_params_.end()) {
+        return it->second;
+    }
+    return "";
+}
+
+void HttpRequest::setParam(const std::string& key, const std::string& value) {
+    path_params_[key] = value;
 }
 
 } // namespace http

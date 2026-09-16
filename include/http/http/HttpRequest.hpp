@@ -73,6 +73,9 @@ class HttpRequest {
 
 	[[nodiscard]]
 	bool hasJson() const noexcept;
+
+	std::string param(const std::string& key) const;
+	void setParam(const std::string& key, const std::string& value);
   private:
 	HttpMethod method_ = HttpMethod::UNKNOWN;
 
@@ -84,6 +87,7 @@ class HttpRequest {
 
 	std::string body_;
 	std::unordered_map<std::string, std::string> queries_;
+	std::unordered_map<std::string, std::string> path_params_;
 
 	nlohmann::json json_body_;
 	bool has_json_{false};

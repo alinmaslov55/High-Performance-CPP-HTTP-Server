@@ -10,17 +10,66 @@ namespace http {
 namespace fs = std::filesystem;
 
 namespace utils{
-	static std::string getMimeType(const std::string& extension) {
-		if (extension == ".html" || extension == ".htm") return "text/html";
-		if (extension == ".css") return "text/css";
-		if (extension == ".js") return "application/javascript";
-		if (extension == ".png") return "image/png";
-		if (extension == ".jpg" || extension == ".jpeg") return "image/jpeg";
-		if (extension == ".svg") return "image/svg+xml";
-		if (extension == ".json") return "application/json";
-		if (extension == ".txt") return "text/plain";
-		return "application/octet-stream"; // default binary type
+
+static std::string getMimeType(const std::string& extension) {
+	if (extension == ".html" || extension == ".htm") return "text/html";
+	if (extension == ".css") return "text/css";
+	if (extension == ".js") return "application/javascript";
+	if (extension == ".png") return "image/png";
+	if (extension == ".jpg" || extension == ".jpeg") return "image/jpeg";
+	if (extension == ".svg") return "image/svg+xml";
+	if (extension == ".json") return "application/json";
+	if (extension == ".txt") return "text/plain";
+	return "application/octet-stream"; // default binary type
+}
+
+std::vector<std::string_view> splitPath(std::string_view s, char delim){
+    std::vector<std::string_view> result;
+    size_t start = 0;
+    while(start < s.size()){
+        size_t end = s.find(delim, start);
+        if(end == std::string_view::npos){
+            if(start < s.size() && !s.substr(start).empty()){
+                result.push_back(s.substr(start));
+            }
+            break;
+        }
+        if(end > start){
+            result.push_back(s.substr(start, end - start));
+        }
+        start = end + 1;
+    }
+    return result;
+}
+
+bool matchDynamicPath(const std::string& route_path, const std::string_view req_path, HttpRequest& req) {
+	if (route_path == req_path) return true;
+
+	if(route_path.find(':') == std::string::npos) return false;
+
+	auto route_segs = splitPath(route_path, '/');
+	auto req_segs = splitPath(req_path, '/');
+	if (route_segs.size() != req_segs.size()) return false;
+
+	std::vector<std::pair<std::string, std::string>> extracted_params;
+	for(size_t i = 0; i < route_segs.size(); ++i) {
+		if(!route_segs[i].empty() && route_segs[i][0] == ':') {
+			extracted_params.emplace_back(
+				std::string(route_segs[i].substr(1)),
+				std::string(req_segs[i])
+			);
+		} else if (route_segs[i] != req_segs[i]) {
+			return false;
+		}
 	}
+
+	for(const auto& [k, v] : extracted_params) {
+		req.setParam(k, v);
+	}
+	return true;
+}
+
+
 } // namespace utils
 
 void Router::get( std::string path, Handler handler ) {
@@ -168,8 +217,13 @@ HttpResponse Router::handle( HttpRequest& request ) const {
 
 	for (const Route& route : routes_) {
 
-		bool matches = route.isPrefix ? request.path().rfind(route.path, 0) == 0
-			: route.path == request.path();
+		bool matches{false};
+
+		if(route.isPrefix) {
+			matches = request.path().rfind(route.path, 0) == 0;
+		} else {
+			matches = utils::matchDynamicPath(route.path, request.path(), request);
+		}
 
 		if (!matches) {
 			continue;

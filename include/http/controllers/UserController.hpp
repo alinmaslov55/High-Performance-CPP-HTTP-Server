@@ -16,6 +16,7 @@ public:
 private:
     void createUser(HttpRequest& req, HttpResponse& res);
     void getAllUsers(HttpRequest& req, HttpResponse& res);
+    void getUserById(HttpRequest& req, HttpResponse& res);
 
     db::MongoPool& db_pool_;
 };
