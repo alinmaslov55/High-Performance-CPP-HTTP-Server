@@ -1,16 +1,17 @@
 #include "http/network/TcpServer.hpp"
+#include "http/network/ClientConnection.hpp"
+#include "http/http/HttpHeaders.hpp"
+#include "http/utils/Logger.hpp"
 
 #include <iostream>
+#include <chrono>
 #include <mutex>
 #include <stdexcept>
+#include <vector>
 
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <vector>
-
-#include "http/network/ClientConnection.hpp"
-#include "http/http/HttpHeaders.hpp"
 
 namespace http {
 
@@ -23,7 +24,8 @@ TcpServer::TcpServer(int port, const Router& router)
 {}
 
 void TcpServer::start() {
-	std::cout << "[INFO] Booting " << num_threads_ << " isolated Epoll loops (SO_REUSEPORT)...\n";
+    LOG_INFO("Booting {} isolated Epoll loops (SO_REUSEPORT)...", num_threads_);
+    LOG_INFO("Background ThreadPool ready for Database offloading.");
 
     for (int i = 0; i < num_threads_; ++i) {
         threads_.emplace_back([this]() {
@@ -70,7 +72,7 @@ void TcpServer::Worker::run() {
         sweepIdleConnections();
     }
 
-    std::cout << "[INFO] Worker thread to shut down \n";
+    LOG_INFO("Worker thread shutting down.");
 }
 
 void TcpServer::Worker::handleNewConnection(){
@@ -134,7 +136,17 @@ void TcpServer::Worker::handleClientData(int client_fd){
 
                 thread_pool_.enqueue([this, connection, async_request, client_fd, keepAlive]() mutable {
                     try{
+                        auto start_time = std::chrono::steady_clock::now();
                         HttpResponse response = router_.handle(async_request);
+
+                        auto end_time = std::chrono::steady_clock::now();
+                        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+
+                        LOG_INFO("Responded [{}] to {} in {}ms", 
+                            static_cast<int>(response.status()), 
+                            async_request.path(), 
+                            duration_ms);
+
                         response.setHeader("Connection", keepAlive ? "keep-alive": "close");
 
                         connection->send(response.serialize());
@@ -147,7 +159,7 @@ void TcpServer::Worker::handleClientData(int client_fd){
                             ::close(client_fd);
                         }
                     } catch (const std::exception& e){
-                        std::cerr << "[ERROR] Async task failed for FD " << client_fd << ": " << e.what() << '\n';
+                        LOG_ERROR("Async task failed for FD {}: {}", client_fd, e.what());
                         ::shutdown(client_fd, SHUT_RDWR);
                         ::close(client_fd);
                     }
@@ -157,7 +169,7 @@ void TcpServer::Worker::handleClientData(int client_fd){
             }
         }
     }catch(const std::exception& e){
-        std::cerr << "[ERROR] Exception while handling client FD " << client_fd << ": " << e.what() << '\n';
+        LOG_ERROR("Exception while handling client FD {}: {}", client_fd , e.what());
         disconnectClient(client_fd);
     }
 }
@@ -177,7 +189,7 @@ void TcpServer::Worker::sweepIdleConnections() {
     }
 
     for (int fd : stale_fds) {
-        std::cout << "[LOG] Disconnecting idle client FD: " << fd << '\n';
+        LOG_DEBUG("Disconnecting idle client FD: {}", fd);
         disconnectClient(fd);
     }
 }

@@ -2,6 +2,7 @@
 local_notes.txt
 .vscode
 build_release/
+.env
 
 # Prerequisites
 *.d

@@ -1,31 +1,40 @@
 #include "http/App.hpp"
 #include "http/network/TcpServer.hpp"
+#include "http/utils/EnvParser.hpp"
+#include "http/utils/Logger.hpp"
 
 #include <iostream>
 #include <csignal>
+#include <cstdlib>
 
 using json = nlohmann::json;
 using namespace http;
 
 
 void handleSignal(int signal){
-    std::cout << "[INFO] Signal " << signal << ". Stopping server\n";
+    LOG_INFO("Signal {}. Stopping server", signal);
     TcpServer::stop();
 }
 
 int main() {
+    utils::Logger::init();
+    utils::EnvParser::load(".env");
+
     ::signal(SIGPIPE, SIG_IGN);
     std::signal(SIGTERM, handleSignal);
     std::signal(SIGINT, handleSignal);
 
+    const char* env_port = std::getenv("PORT");
+    const char* env_mongo = std::getenv("MONGO_URI");
+
     AppConfiguration config{
-        .port = 8080,
-        .db_uri = "mongodb://localhost:27017"
+        .port = env_port ? std::atoi(env_port): 8080,
+        .db_uri = env_mongo? std::string(env_mongo): "mongodb://localhost:27017"
     };
 
     App app(config);
     app.run();
 
-    std::cout << "Server shutdown complete\n";
+    LOG_INFO("Server shutdown complete");
     return 0;
 }

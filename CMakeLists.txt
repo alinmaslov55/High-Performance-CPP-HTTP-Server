@@ -19,6 +19,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(json)
 
+# spdlog fetch
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG v1.13.0
+)
+FetchContent_MakeAvailable(spdlog)
+
 # mongodb driver search
 find_package(mongocxx REQUIRED)
 find_package(bsoncxx REQUIRED)
@@ -40,11 +48,14 @@ add_library(http_server_core
     src/database/MongoPool.cpp
     src/controllers/UserController.cpp
     src/App.cpp
+    src/utils/EnvParser.cpp
+    src/utils/Logger.cpp
 )
 target_include_directories(http_server_core PUBLIC include)
 target_link_libraries(http_server_core PUBLIC 
     nlohmann_json::nlohmann_json
-$<IF:$<TARGET_EXISTS:mongo::mongocxx_shared>,mongo::mongocxx_shared,mongo::mongocxx_static>
+    spdlog::spdlog_header_only
+    $<IF:$<TARGET_EXISTS:mongo::mongocxx_shared>,mongo::mongocxx_shared,mongo::mongocxx_static>
     $<IF:$<TARGET_EXISTS:mongo::bsoncxx_shared>,mongo::bsoncxx_shared,mongo::bsoncxx_static>)
 
 # main exec
