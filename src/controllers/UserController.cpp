@@ -22,6 +22,14 @@ void UserController::registerRoutes(Router& router) {
     router.get("/api/users/:id", [this](HttpRequest& req, HttpResponse& res) {
         this->getUserById(req, res);
     });
+
+    router.put("/api/users/:id", [this](HttpRequest& req, HttpResponse& res) {
+        this->updateUser(req, res);
+    });
+
+    router.del("/api/users/:id", [this](HttpRequest& req, HttpResponse& res) {
+        this->deleteUser(req, res);
+    });
 }
 
 void UserController::createUser(HttpRequest& req, HttpResponse& res) {
@@ -108,5 +116,99 @@ void UserController::getUserById(HttpRequest& req, HttpResponse& res) {
         res.json(std::string("{\"error\": \"") + e.what() + "\"}");
     }
 }
+
+void UserController::updateUser(HttpRequest& req, HttpResponse& res) {
+    std::string user_id = req.param("id");
+    nlohmann::json payload;
+
+    if(req.hasJson()){
+        payload = req.json();
+    } else if (!req.body().empty()) {
+        try {
+            payload = nlohmann::json::parse(req.body());
+        } catch (...) {
+            res.setStatus(HttpStatus::BadRequest);
+            res.json("{\"error\": \"Invalid JSON\"}");
+            return;
+        }
+    } else {
+        res.setStatus(HttpStatus::BadRequest);
+        res.json("{\"error\": \"Missing request body\"}");
+        return;
+    }
+
+    payload.erase("_id");
+
+    if(payload.empty()){
+        res.setStatus(HttpStatus::BadRequest);
+        res.json("{\"error\": \"No fields to update\"}");
+        return;
+    }
+
+    try {
+        bsoncxx::oid document_id(user_id);
+
+        auto conn = db_pool_.acquire();
+        auto collection = (*conn)["test_db"]["users"];
+        
+        auto filter = bsoncxx::builder::stream::document{} 
+            << "_id" << document_id
+            << bsoncxx::builder::stream::finalize;
+
+        bsoncxx::document::value update_doc = bsoncxx::from_json(payload.dump());
+
+        auto update = bsoncxx::builder::stream::document{}
+            << "$set" << update_doc.view()
+            << bsoncxx::builder::stream::finalize;
+        
+        auto result = collection.update_one(filter.view(), update.view());
+
+        if(result && result->matched_count() > 0){
+            res.setStatus(HttpStatus::OK);
+            res.json("{\"status\": \"success\", \"message\": \"User updated\"}");
+        } else {
+            res.setStatus(HttpStatus::NotFound);
+            res.json("{\"error\": \"User not found\"}");
+        }
+    } catch (const bsoncxx::exception&){
+        res.setStatus(HttpStatus::BadRequest);
+        res.json("{\"error\": \"Invalid user ID format\"}");
+    } catch (const std::exception& e){
+        res.setStatus(HttpStatus::InternalServerError);
+        res.json(std::string("{\"error\": \"") + e.what() + "\"}");
+    }
+}
+
+void UserController::deleteUser(HttpRequest& req, HttpResponse& res){
+    std::string user_id = req.param("id");
+
+    try {
+        bsoncxx::oid document_id(user_id);
+
+        auto conn = db_pool_.acquire();
+        auto collection = (*conn)["test_db"]["users"];
+
+        auto filter = bsoncxx::builder::stream::document{}
+            << "_id" << document_id
+            << bsoncxx::builder::stream::finalize;
+        
+        auto result = collection.delete_one(filter.view());
+
+        if(result && result->deleted_count() > 0){
+            res.setStatus(HttpStatus::OK);
+            res.json("{\"status\": \"success\", \"message\": \"User deleted\"}");
+        } else {
+            res.setStatus(HttpStatus::NotFound);
+            res.json("{\"error\": \"User not found\"}");
+        }
+    } catch (const bsoncxx::exception&){
+        res.setStatus(HttpStatus::BadRequest);
+        res.json("{\"error\": \"Invalid user ID format\"}");
+    } catch (const std::exception& e){
+        res.setStatus(HttpStatus::InternalServerError);
+        res.json(std::string("{\"error\": \"") + e.what() + "\"}");
+    }
+}
+
 } // namespace controllers
 } // namespace http

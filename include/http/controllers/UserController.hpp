@@ -17,6 +17,8 @@ private:
     void createUser(HttpRequest& req, HttpResponse& res);
     void getAllUsers(HttpRequest& req, HttpResponse& res);
     void getUserById(HttpRequest& req, HttpResponse& res);
+    void updateUser(HttpRequest& req, HttpResponse& res);
+    void deleteUser(HttpRequest& req, HttpResponse& res);
 
     db::MongoPool& db_pool_;
 };
