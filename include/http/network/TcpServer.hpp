@@ -45,7 +45,7 @@ class TcpServer {
   private:
 	class Worker{
 	public:
-		Worker(int port, const Router& router);
+		Worker(int port, const Router& router, concurrency::ThreadPool& pool);
 		void run();
 	private:
 		void handleNewConnection();
@@ -53,18 +53,21 @@ class TcpServer {
 		void disconnectClient(int client_fd);
 		void sweepIdleConnections();
 		
-		static constexpr int CONNECTION_TIMEOUT_SECONDS = 30;
-			
 		Socket server_socket_;
 		const Router& router_;
 		Epoll epoll_;
 		std::unordered_map<int, std::shared_ptr<ClientConnection>> active_connections_;
+		concurrency::ThreadPool& thread_pool_;
+		
+		static constexpr int CONNECTION_TIMEOUT_SECONDS = 30;
 	};
 
 	int port_;
 	const Router& router_;
 	int num_threads_;
 	std::vector<std::thread> threads_;
+	concurrency::ThreadPool thread_pool_;
+
 	inline static std::atomic<bool> running_{true};
 };
 

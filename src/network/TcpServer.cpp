@@ -18,7 +18,8 @@ TcpServer::TcpServer(int port, const Router& router)
 	: port_(port),
 	router_(router),
 	num_threads_(std::thread::hardware_concurrency() > 0 ?
-		std::thread::hardware_concurrency() : DEFAULT_THREADS)
+		std::thread::hardware_concurrency() : DEFAULT_THREADS),
+        thread_pool_(DEFAULT_THREADS * 2)
 {}
 
 void TcpServer::start() {
@@ -26,7 +27,7 @@ void TcpServer::start() {
 
     for (int i = 0; i < num_threads_; ++i) {
         threads_.emplace_back([this]() {
-            Worker worker(port_, router_);
+            Worker worker(port_, router_, thread_pool_);
             worker.run();
         });
     }
@@ -38,9 +39,10 @@ void TcpServer::start() {
     }
 }
 
-TcpServer::Worker::Worker(int port, const Router& router)
+TcpServer::Worker::Worker(int port, const Router& router, concurrency::ThreadPool& pool)
     : server_socket_(Socket::create_tcp()),
-      router_(router)
+      router_(router),
+      thread_pool_(pool)
 {
     server_socket_.setReuseAddress();
     server_socket_.setReusePort();
@@ -126,17 +128,32 @@ void TcpServer::Worker::handleClientData(int client_fd){
                 bool keepAlive = (request.version() == "HTTP/1.1") &&
                 !HttpHeaders::equalsIgnoreCase(request.header("Connection"), "close");
 
-                response = router_.handle(request);
+                HttpRequest async_request = request;
 
-                response.setHeader("Connection", keepAlive ? "keep-alive" : "close");
-                
-                connection->send(response.serialize());
                 connection->consumeParsedRequest();
 
-                if (!keepAlive) {
-                    disconnectClient(client_fd);
-                    return;
-                }
+                thread_pool_.enqueue([this, connection, async_request, client_fd, keepAlive]() mutable {
+                    try{
+                        HttpResponse response = router_.handle(async_request);
+                        response.setHeader("Connection", keepAlive ? "keep-alive": "close");
+
+                        connection->send(response.serialize());
+                        connection->updateActivity();
+
+                        if(keepAlive && TcpServer::isRunning()){
+                            epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
+                        } else {
+                            ::shutdown(client_fd, SHUT_RDWR);
+                            ::close(client_fd);
+                        }
+                    } catch (const std::exception& e){
+                        std::cerr << "[ERROR] Async task failed for FD " << client_fd << ": " << e.what() << '\n';
+                        ::shutdown(client_fd, SHUT_RDWR);
+                        ::close(client_fd);
+                    }
+                });
+
+                return;
             }
         }
     }catch(const std::exception& e){
