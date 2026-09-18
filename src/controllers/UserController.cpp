@@ -3,7 +3,7 @@
 #include <bsoncxx/builder/stream/document.hpp>
 #include <bsoncxx/oid.hpp>
 #include <bsoncxx/exception/exception.hpp>
-
+#include <mongocxx/options/find.hpp>
 
 namespace http {
 namespace controllers {
@@ -72,7 +72,40 @@ void UserController::getAllUsers(HttpRequest& req, HttpResponse& res) {
         auto conn = db_pool_.acquire();
         auto collection = (*conn)["test_db"]["users"];
 
-        auto cursor = collection.find({});
+        mongocxx::options::find opts;
+
+        auto limit_str = req.query("limit");
+        if(!limit_str.empty()){
+            try {
+                opts.limit(std::stoi(std::string(limit_str)));
+            } catch (...){
+                res.setStatus(HttpStatus::BadRequest);
+                res.json("{\"error\": \"Invalid limit parameter\"}");
+                return;
+            }
+        }
+
+        auto skip_str = req.query("skip");
+        if (!skip_str.empty()) {
+            try {
+                opts.skip(std::stoi(std::string(skip_str)));
+            } catch (...) {
+                res.setStatus(HttpStatus::BadRequest);
+                res.json("{\"error\": \"Invalid skip parameter\"}");
+                return;
+            }
+        }
+
+        auto sort_field = req.query("sort");
+        if(!sort_field.empty()){
+            int sort_direction = (req.query("order") == "desc")? -1 : 1;
+
+            opts.sort(bsoncxx::builder::stream::document{}
+                << std::string(sort_field) << sort_direction << bsoncxx::builder::stream::finalize
+            );
+        }
+
+        auto cursor = collection.find({}, opts);
         nlohmann::json response_array = nlohmann::json::array();
 
         for (auto&& doc : cursor) {
