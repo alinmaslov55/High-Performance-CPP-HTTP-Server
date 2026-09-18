@@ -1,24 +1,27 @@
 # High-Performance C++ HTTP Server
 
-A blazing-fast, lock-free, asynchronous HTTP web framework built from scratch in modern C++20. 
+A blazing-fast, lock-free, asynchronous HTTP web framework built from scratch in modern C++20.
 
 Designed for extreme throughput and low latency, this framework utilizes the **Reactor Pattern** with Linux `epoll`, Edge Triggering (`EPOLLET`), and `SO_REUSEPORT`. By implementing **Zero-Copy parsing** and a strictly lock-free core network engine, it completely eliminates OS-level context switches and mutex contention.
 
-## ✨ Features
+## Features
 
 * **One-Loop-Per-Thread Architecture:** Kernel-level load balancing across CPU cores with `SO_REUSEPORT`.
 * **Zero-Copy HTTP Parsing:** Fragment-safe state machine parser using `std::string_view` to eliminate heap allocations during network reads.
 * **Express-style Routing:** Supports exact/prefix matching, HTTP verb mapping, and query parameter extraction.
-* **Middleware Pipeline:** Supports both global middleware and route-specific middleware 
+* **Middleware Pipeline:** Supports both global middleware and route-specific middleware
 * **Static File Server:** Built-in MIME-type inference and strict directory traversal protection.
 * **Modern Tooling:** Automatic JSON body parsing (`nlohmann/json`), Chunked Transfer Encoding support, and URL decoding.
 * **Lock-Free ThreadPool:** A custom C++20 atomic ring-buffer thread pool for offloading heavy application tasks.
+* **Async Logging:** Logs with server activity containing Requests and Thread tasks
+* **Stateless Authentication(JWT middleware):** Intercept incoming requests, parse the header for authorization, and reject unauthorized users
+* **Environment Configuration:**
 
 ## Performance Benchmark
 Tested on a Debian VM using `wrk` (12 threads, 400 concurrent connections, 30 seconds):
 * **Throughput:** 26,054 Requests / Second
 * **Latency:** 15.40 ms avg
-* **Socket Errors:** 0 
+* **Socket Errors:** 0
 
 ## Quick Start
 
@@ -60,6 +63,7 @@ int main() {
 - **Compiler**: C++20 support
 - **Build System**: CMake >= 3.14
 - **MongoDb Installed**
+- **jwt-cpp Installed**
 - *Other Libraries are fetched by CMake*
 
 ## Build and Run Commands

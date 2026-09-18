@@ -1,4 +1,5 @@
 #include "http/controllers/UserController.hpp"
+#include "http/utils/JwtUtils.hpp"
 #include <bsoncxx/json.hpp>
 #include <bsoncxx/builder/stream/document.hpp>
 #include <bsoncxx/oid.hpp>
@@ -11,24 +12,49 @@ namespace controllers {
 UserController::UserController(db::MongoPool& db_pool) : db_pool_(db_pool) {}
 
 void UserController::registerRoutes(Router& router) {
-    router.post("/api/users", [this](HttpRequest& req, HttpResponse& res) {
-        this->createUser(req, res);
+    router.post("/api/login", [this](HttpRequest& req, HttpResponse& res){
+        this->loginUser(req, res);
     });
 
-    router.get("/api/users", [this](HttpRequest& req, HttpResponse& res) {
-        this->getAllUsers(req, res);
+    auto requireAuth = [](HttpRequest& req, HttpResponse& res) -> bool {
+        std::string auth_header = std::string(req.header("Authorization")); 
+        
+        if (auth_header.empty() || auth_header.substr(0, 7) != "Bearer ") {
+            res.setStatus(HttpStatus::Unauthorized);
+            res.json("{\"error\": \"Missing or invalid Authorization header\"}");
+            return false;
+        }
+
+        std::string token = auth_header.substr(7);
+        std::string user_id;
+        
+        if (!utils::JwtUtils::verifyToken(token, user_id)) {
+            res.setStatus(HttpStatus::Unauthorized);
+            res.json("{\"error\": \"Invalid or expired token\"}");
+            return false;
+        }
+        
+        return true; // Valid Token
+    };
+
+    router.post("/api/users", [this, requireAuth](HttpRequest& req, HttpResponse& res) {
+        if (requireAuth(req, res)) this->createUser(req, res);
     });
 
-    router.get("/api/users/:id", [this](HttpRequest& req, HttpResponse& res) {
-        this->getUserById(req, res);
+    router.get("/api/users", [this, requireAuth](HttpRequest& req, HttpResponse& res) {
+        if (requireAuth(req, res)) this->getAllUsers(req, res);
     });
 
-    router.put("/api/users/:id", [this](HttpRequest& req, HttpResponse& res) {
-        this->updateUser(req, res);
+    router.get("/api/users/:id", [this, requireAuth](HttpRequest& req, HttpResponse& res) {
+        if (requireAuth(req, res)) this->getUserById(req, res);
     });
 
-    router.del("/api/users/:id", [this](HttpRequest& req, HttpResponse& res) {
-        this->deleteUser(req, res);
+    router.put("/api/users/:id", [this, requireAuth](HttpRequest& req, HttpResponse& res) {
+        if (requireAuth(req, res)) this->updateUser(req, res);
+    });
+
+    router.del("/api/users/:id", [this, requireAuth](HttpRequest& req, HttpResponse& res) {
+        if (requireAuth(req, res)) this->deleteUser(req, res);
     });
 }
 
@@ -238,6 +264,61 @@ void UserController::deleteUser(HttpRequest& req, HttpResponse& res){
         res.setStatus(HttpStatus::BadRequest);
         res.json("{\"error\": \"Invalid user ID format\"}");
     } catch (const std::exception& e){
+        res.setStatus(HttpStatus::InternalServerError);
+        res.json(std::string("{\"error\": \"") + e.what() + "\"}");
+    }
+}
+
+void UserController::loginUser(HttpRequest& req, HttpResponse& res){
+    nlohmann::json payload;
+
+    try {
+        payload = req.hasJson()? req.json(): nlohmann::json::parse(req.body());
+    } catch (...){
+        res.setStatus(HttpStatus::BadRequest);
+        res.json("{\"error\": \"Invalid JSON\"}");
+        return;
+    }
+
+    if (!payload.contains("name")) {
+        res.setStatus(HttpStatus::BadRequest);
+        res.json("{\"error\": \"Missing 'name' for login\"}");
+        return;
+    }
+
+    try {
+        std::string username = payload["name"];
+
+        auto conn = db_pool_.acquire();
+        auto collection = (*conn)["test_db"]["users"];
+        auto query = bsoncxx::builder::stream::document{}
+            << "name" << username
+            << bsoncxx::builder::stream::finalize;
+
+        auto result = collection.find_one(query.view());
+
+        if(result){
+            auto view = result->view();
+            std::string id_str = view["_id"].get_oid().value.to_string();
+
+            std::string role = "user";
+
+            if(view["role"]){
+                role = std::string(view["role"].get_string().value);
+            }
+
+            std::string token = utils::JwtUtils::generateToken(id_str, role);
+
+            res.setStatus(HttpStatus::OK);
+            nlohmann::json response;
+            response["status"] = "success";
+            response["token"] = token;
+            res.json(response.dump());
+        } else {
+            res.setStatus(HttpStatus::Unauthorized);
+            res.json("{\"error\": \"User not found\"}");
+        }
+    } catch (std::exception& e){
         res.setStatus(HttpStatus::InternalServerError);
         res.json(std::string("{\"error\": \"") + e.what() + "\"}");
     }

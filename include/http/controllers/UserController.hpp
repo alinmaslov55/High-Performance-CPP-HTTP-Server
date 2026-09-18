@@ -20,6 +20,8 @@ private:
     void updateUser(HttpRequest& req, HttpResponse& res);
     void deleteUser(HttpRequest& req, HttpResponse& res);
 
+    void loginUser(HttpRequest& req, HttpResponse& res);
+
     db::MongoPool& db_pool_;
 };
 } // namespace controllers

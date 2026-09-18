@@ -31,6 +31,9 @@ FetchContent_MakeAvailable(spdlog)
 find_package(mongocxx REQUIRED)
 find_package(bsoncxx REQUIRED)
 
+# jwt-cpp search
+find_package(jwt-cpp CONFIG REQUIRED)
+
 # Main
 add_library(http_server_core
     src/http/HttpHeaders.cpp
@@ -50,11 +53,13 @@ add_library(http_server_core
     src/App.cpp
     src/utils/EnvParser.cpp
     src/utils/Logger.cpp
+    src/utils/JwtUtils.cpp
 )
 target_include_directories(http_server_core PUBLIC include)
 target_link_libraries(http_server_core PUBLIC 
     nlohmann_json::nlohmann_json
     spdlog::spdlog_header_only
+    jwt-cpp::jwt-cpp
     $<IF:$<TARGET_EXISTS:mongo::mongocxx_shared>,mongo::mongocxx_shared,mongo::mongocxx_static>
     $<IF:$<TARGET_EXISTS:mongo::bsoncxx_shared>,mongo::bsoncxx_shared,mongo::bsoncxx_static>)
 
