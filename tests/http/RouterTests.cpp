@@ -5,7 +5,7 @@ namespace http_tests {
 
 using namespace http;
 
-HttpRequest createRequest(HttpMethod method, const std::string& path) {
+HttpRequest createRequest(HttpMethod method, std::string_view path) {
     HttpRequest req;
     req.setMethod(method);
     req.setPath(path);

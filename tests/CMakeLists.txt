@@ -6,6 +6,8 @@ add_executable(http_server_tests
     http/HttpUtilsTests.cpp
     http/RouterTests.cpp
     concurrency/ThreadPoolTests.cpp
+    utils/JwtUtilsTests.cpp
+    controllers/UserControllerTests.cpp
 )
 
 target_link_libraries(http_server_tests

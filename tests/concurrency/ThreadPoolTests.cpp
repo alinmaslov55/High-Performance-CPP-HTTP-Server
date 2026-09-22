@@ -19,6 +19,10 @@ TEST(ThreadPoolTest, ExecutesSingleTask) {
         pool.enqueue([&task_executed]() {
             task_executed = true;
         });
+
+        while (!task_executed.load()) {
+            std::this_thread::yield();
+        }
     }
 
     EXPECT_TRUE(task_executed.load());
@@ -35,6 +39,10 @@ TEST(ThreadPoolTest, ExecutesMultipleTasksConcurrently) {
             pool.enqueue([&counter]() {
                 counter++; 
             });
+        }
+
+        while (counter.load() < num_tasks) {
+            std::this_thread::yield();
         }
     }
     
@@ -53,6 +61,10 @@ TEST(ThreadPoolTest, HandlesHeavyWorkloads) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 completed_tasks++;
             });
+        }
+
+        while (completed_tasks.load() < num_tasks) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     } 
     
