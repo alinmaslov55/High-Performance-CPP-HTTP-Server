@@ -69,6 +69,7 @@ int main() {
 ## Build and Run Commands
 
 - Dev Build
+
 ```bash
 cmake -S . -B build
 
@@ -77,6 +78,22 @@ cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=~/vcpkg/scripts/buildsystems/vcpkg.cm
 
 cmake --build build
 ./build/http_server
+```
+
+- Docker Container
+
+```bash
+# to build
+docker compose up --build
+
+# to run detached mode
+docker compose up -d
+
+# show logs
+docker compose logs -f
+
+# to stop
+docker compose down
 ```
 
 - Release Build
