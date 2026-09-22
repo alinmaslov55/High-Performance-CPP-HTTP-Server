@@ -30,14 +30,15 @@ TEST(JwtUtilsTest, RejectsEmptyOrGarbageToken) {
 TEST(JwtUtilsTest, RejectsTamperedSignature) {
     std::string token = JwtUtils::generateToken("user_123", "user");
     
-    if (!token.empty()) {
-        token.back() = (token.back() == 'a') ? 'b' : 'a';
+    size_t first_dot = token.find('.');
+    
+    if (first_dot != std::string::npos && first_dot + 1 < token.length()) {
+        token[first_dot + 1] = (token[first_dot + 1] == 'a') ? 'b' : 'a';
     }
     
     std::string extracted_user_id;
     bool is_valid = JwtUtils::verifyToken(token, extracted_user_id);
     
-    // The crypto engine should detect the tampering and fail
     EXPECT_FALSE(is_valid);
 }
 

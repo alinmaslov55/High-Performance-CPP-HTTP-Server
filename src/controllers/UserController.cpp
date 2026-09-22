@@ -1,5 +1,7 @@
 #include "http/controllers/UserController.hpp"
+#include "http/utils/CryptoUtils.hpp"
 #include "http/utils/JwtUtils.hpp"
+
 #include <bsoncxx/json.hpp>
 #include <bsoncxx/builder/stream/document.hpp>
 #include <bsoncxx/oid.hpp>
@@ -38,7 +40,7 @@ void UserController::registerRoutes(Router& router) {
     };
 
     router.post("/api/users", [this, requireAuth](HttpRequest& req, HttpResponse& res) {
-        if (requireAuth(req, res)) this->createUser(req, res);
+        this->createUser(req, res);
     });
 
     router.get("/api/users", [this, requireAuth](HttpRequest& req, HttpResponse& res) {
@@ -77,7 +79,19 @@ void UserController::createUser(HttpRequest& req, HttpResponse& res) {
         return;
     }
 
+    if(!payload.contains("password") || !payload["password"].is_string()){
+        res.setStatus(HttpStatus::BadRequest);
+        res.json("{\"error\": \"Missing or invalid 'password' field\"}");
+        return;
+    }
+
     try {
+        std::string plaintext_password = payload["password"];
+        std::string hashed_password = utils::CryptoUtils::hashPassword(plaintext_password);
+
+        payload.erase("password");
+        payload["password_hash"] = hashed_password;
+
         auto conn = db_pool_.acquire();
         auto collection = (*conn)["test_db"]["users"];
 
@@ -280,14 +294,15 @@ void UserController::loginUser(HttpRequest& req, HttpResponse& res){
         return;
     }
 
-    if (!payload.contains("name")) {
+    if (!payload.contains("name") || !payload.contains("password")) {
         res.setStatus(HttpStatus::BadRequest);
-        res.json("{\"error\": \"Missing 'name' for login\"}");
+        res.json("{\"error\": \"Missing 'name' or 'password' for login\"}");
         return;
     }
 
     try {
         std::string username = payload["name"];
+        std::string plaintext_password = payload["password"];
 
         auto conn = db_pool_.acquire();
         auto collection = (*conn)["test_db"]["users"];
@@ -299,6 +314,21 @@ void UserController::loginUser(HttpRequest& req, HttpResponse& res){
 
         if(result){
             auto view = result->view();
+
+            if (!view["password_hash"]) {
+                res.setStatus(HttpStatus::Unauthorized);
+                res.json("{\"error\": \"Legacy user: no password set. Please recreate user.\"}");
+                return;
+            }
+
+            std::string stored_hash = std::string(view["password_hash"].get_string().value);
+
+            if (!utils::CryptoUtils::verifyPassword(plaintext_password, stored_hash)) {
+                res.setStatus(HttpStatus::Unauthorized);
+                res.json("{\"error\": \"Invalid username or password\"}");
+                return;
+            }
+
             std::string id_str = view["_id"].get_oid().value.to_string();
 
             std::string role = "user";

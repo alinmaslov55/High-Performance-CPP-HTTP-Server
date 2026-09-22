@@ -7,6 +7,7 @@ add_executable(http_server_tests
     http/RouterTests.cpp
     concurrency/ThreadPoolTests.cpp
     utils/JwtUtilsTests.cpp
+    utils/CryptoUtilsTests.cpp
     controllers/UserControllerTests.cpp
 )
 

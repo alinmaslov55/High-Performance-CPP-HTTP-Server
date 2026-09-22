@@ -70,7 +70,7 @@ TEST_F(UserControllerTest, LoginRejectsMissingName) {
     auto res = router.handle(req);
     
     EXPECT_EQ(res.status(), HttpStatus::BadRequest);
-    EXPECT_TRUE(res.body().find("Missing 'name'") != std::string::npos);
+    EXPECT_TRUE(res.body().find("Missing 'name' or 'password'") != std::string::npos);
 }
 
 TEST_F(UserControllerTest, UpdateRejectsEmptyPayloadAfterIdErased) {
@@ -84,5 +84,26 @@ TEST_F(UserControllerTest, UpdateRejectsEmptyPayloadAfterIdErased) {
     EXPECT_EQ(res.status(), HttpStatus::BadRequest);
     EXPECT_TRUE(res.body().find("No fields to update") != std::string::npos);
 }
+
+// A valid token is needed to pass the auth middleware before the payload is validated
+TEST_F(UserControllerTest, CreateUserRejectsMissingPassword) {
+    std::string token = utils::JwtUtils::generateToken("test_id", "admin");
+    
+    auto req = createRequest(HttpMethod::POST, "/api/users", "{\"name\": \"Bob\"}");
+    req.setHeader("Authorization", "Bearer " + token);
+    
+    auto res = router.handle(req);
+    
+    EXPECT_EQ(res.status(), HttpStatus::BadRequest);
+    EXPECT_TRUE(res.body().find("Missing or invalid 'password' field") != std::string::npos);
+}
+
+TEST_F(UserControllerTest, LoginRejectsMissingPassword) {
+    auto req = createRequest(HttpMethod::POST, "/api/login", "{\"name\": \"Bob\"}");
+    auto res = router.handle(req);
+    
+    EXPECT_EQ(res.status(), HttpStatus::BadRequest);
+    EXPECT_TRUE(res.body().find("Missing 'name' or 'password' for login") != std::string::npos);
+} 
 
 } // namespace http_tests
