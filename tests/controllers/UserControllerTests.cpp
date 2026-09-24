@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "http/controllers/UserController.hpp"
+#include "http/repositories/UserRepository.hpp"
 #include "http/http/Router.hpp"
 #include "http/utils/JwtUtils.hpp"
 #include <mongocxx/instance.hpp>
@@ -14,18 +15,21 @@ static mongocxx::instance db_instance{};
 class UserControllerTest : public ::testing::Test {
 protected:
     db::MongoPool* db_pool;
+    repositories::UserRepository* user_repo;
     UserController* controller;
     Router router;
 
     void SetUp() override {
         db_pool = new db::MongoPool("mongodb://localhost:27017");
-        controller = new UserController(*db_pool);
+        user_repo = new repositories::UserRepository(*db_pool);
+        controller = new UserController(*user_repo);
         
         controller->registerRoutes(router);
     }
 
     void TearDown() override {
         delete controller;
+        delete user_repo;
         delete db_pool;
     }
 
@@ -82,7 +86,7 @@ TEST_F(UserControllerTest, UpdateRejectsEmptyPayloadAfterIdErased) {
     auto res = router.handle(req);
     
     EXPECT_EQ(res.status(), HttpStatus::BadRequest);
-    EXPECT_TRUE(res.body().find("No fields to update") != std::string::npos);
+    EXPECT_TRUE(res.body().find("No valid fields to update") != std::string::npos);
 }
 
 // A valid token is needed to pass the auth middleware before the payload is validated
@@ -95,7 +99,7 @@ TEST_F(UserControllerTest, CreateUserRejectsMissingPassword) {
     auto res = router.handle(req);
     
     EXPECT_EQ(res.status(), HttpStatus::BadRequest);
-    EXPECT_TRUE(res.body().find("Missing or invalid 'password' field") != std::string::npos);
+    EXPECT_TRUE(res.body().find("Missing or invalid 'name' or 'password' field") != std::string::npos);
 }
 
 TEST_F(UserControllerTest, LoginRejectsMissingPassword) {
@@ -103,7 +107,7 @@ TEST_F(UserControllerTest, LoginRejectsMissingPassword) {
     auto res = router.handle(req);
     
     EXPECT_EQ(res.status(), HttpStatus::BadRequest);
-    EXPECT_TRUE(res.body().find("Missing 'name' or 'password' for login") != std::string::npos);
-} 
+    EXPECT_TRUE(res.body().find("Missing 'name' or 'password'") != std::string::npos);
+}
 
 } // namespace http_tests

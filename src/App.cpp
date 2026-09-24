@@ -14,7 +14,8 @@ App::App(const AppConfiguration& config)
       mongo_instance_(),
       db_pool_(config_.db_uri),
       router_(),
-      user_controller_(db_pool_),
+      user_repo_(db_pool_),
+      user_controller_(user_repo_),
       server_(config_.port, router_)
 {
     std::string redis_uri = std::getenv("REDIS_URI") ? std::getenv("REDIS_URI") : "tcp://localhost:6379";

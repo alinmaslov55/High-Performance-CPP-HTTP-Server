@@ -14,7 +14,7 @@ namespace controllers {
 
 using namespace middlewares;
 
-UserController::UserController(db::MongoPool& db_pool) : db_pool_(db_pool) {}
+UserController::UserController(repositories::UserRepository & repo) : userRepo_(repo) {}
 
 void UserController::registerRoutes(Router& router) {
     router.post("/api/login", [this](HttpRequest& req, HttpResponse& res){
@@ -48,28 +48,26 @@ void UserController::createUser(HttpRequest& req, HttpResponse& res) {
     nlohmann::json payload;
     if (!extractJson(req, res, payload)) return;
 
-    if(!payload.contains("password") || !payload["password"].is_string()){
+    if(!payload.contains("name") || !payload.contains("password") || !payload["password"].is_string()){
         res.setStatus(HttpStatus::BadRequest);
-        res.json("{\"error\": \"Missing or invalid 'password' field\"}");
+        res.json("{\"error\": \"Missing or invalid 'name' or 'password' field\"}");
         return;
     }
 
     try {
+        std::string name = payload["name"];
         std::string plaintext_password = payload["password"];
+        std::string role = payload.contains("role") ? payload["role"] : "user";
+
         std::string hashed_password = utils::CryptoUtils::hashPassword(plaintext_password);
 
-        payload.erase("password");
-        payload["password_hash"] = hashed_password;
-
-        auto conn = db_pool_.acquire();
-        auto collection = (*conn)["test_db"]["users"];
-
-        bsoncxx::document::value document = bsoncxx::from_json(payload.dump());
-        collection.insert_one(document.view());
-
-        res.setStatus(HttpStatus::Created);
-        res.json("{\"status\": \"success\", \"message\": \"User added!\"}");
-
+        if (userRepo_.createUser(name, hashed_password, role)) {
+            res.setStatus(HttpStatus::Created);
+            res.json("{\"status\": \"success\", \"message\": \"User added!\"}");
+        } else {
+            res.setStatus(HttpStatus::InternalServerError);
+            res.json("{\"error\": \"Failed to create user\"}");
+        }
     } catch (const std::exception& e) {
         res.setStatus(HttpStatus::InternalServerError);
         res.json(std::string("{\"error\": \"") + e.what() + "\"}");
@@ -77,85 +75,40 @@ void UserController::createUser(HttpRequest& req, HttpResponse& res) {
 }
 
 void UserController::getAllUsers(HttpRequest& req, HttpResponse& res) {
+    int limit = 0, skip = 0, sort_order = 1;
+    std::string sort_field = std::string(req.query("sort"));
+
     try {
-        auto conn = db_pool_.acquire();
-        auto collection = (*conn)["test_db"]["users"];
-
-        mongocxx::options::find opts;
-
-        auto limit_str = req.query("limit");
-        if(!limit_str.empty()){
-            try {
-                opts.limit(std::stoi(std::string(limit_str)));
-            } catch (...){
-                res.setStatus(HttpStatus::BadRequest);
-                res.json("{\"error\": \"Invalid limit parameter\"}");
-                return;
-            }
-        }
-
-        auto skip_str = req.query("skip");
-        if (!skip_str.empty()) {
-            try {
-                opts.skip(std::stoi(std::string(skip_str)));
-            } catch (...) {
-                res.setStatus(HttpStatus::BadRequest);
-                res.json("{\"error\": \"Invalid skip parameter\"}");
-                return;
-            }
-        }
-
-        auto sort_field = req.query("sort");
-        if(!sort_field.empty()){
-            int sort_direction = (req.query("order") == "desc")? -1 : 1;
-
-            opts.sort(bsoncxx::builder::stream::document{}
-                << std::string(sort_field) << sort_direction << bsoncxx::builder::stream::finalize
-            );
-        }
-
-        auto cursor = collection.find({}, opts);
-        nlohmann::json response_array = nlohmann::json::array();
-
-        for (auto&& doc : cursor) {
-            response_array.push_back(nlohmann::json::parse(bsoncxx::to_json(doc)));
-        }
-
-        res.setStatus(HttpStatus::OK);
-        res.json(response_array.dump());
-
-    } catch (const std::exception& e) {
-        res.setStatus(HttpStatus::InternalServerError);
-        res.json(std::string("{\"error\": \"") + e.what() + "\"}");
+        if (!req.query("limit").empty()) limit = std::stoi(std::string(req.query("limit")));
+        if (!req.query("skip").empty()) skip = std::stoi(std::string(req.query("skip")));
+        if (req.query("order") == "desc") sort_order = -1;
+    } catch (...) {
+        res.setStatus(HttpStatus::BadRequest);
+        res.json("{\"error\": \"Invalid query parameters\"}");
+        return;
     }
+
+    auto users = userRepo_.getAllUsers(limit, skip, sort_field, sort_order);
+    
+    nlohmann::json response_array = nlohmann::json::array();
+    for (const auto& user : users) {
+        response_array.push_back(user.toSafeJson());
+    }
+
+    res.setStatus(HttpStatus::OK);
+    res.json(response_array.dump());
 }
 
 void UserController::getUserById(HttpRequest& req, HttpResponse& res) {
     std::string user_id = req.param("id");
 
-    try {
-        bsoncxx::oid document_id(user_id);
-
-        auto conn = db_pool_.acquire();
-        auto collection = (*conn)["test_db"]["users"];
-        auto query = bsoncxx::builder::stream::document{}
-            << "_id" << document_id
-            << bsoncxx::builder::stream::finalize;
-        auto result = collection.find_one(query.view());
-
-        if(result){
-            res.setStatus(HttpStatus::OK);
-            res.json(bsoncxx::to_json(*result));
-        } else {
-            res.setStatus(HttpStatus::NotFound);
-            res.json(std::string("{\"error\": \"User not found\"}"));
-        }
-    } catch (const bsoncxx::exception& e) {
-        res.setStatus(HttpStatus::BadRequest);
-        res.json(std::string("{\"error\": \"Invalid user ID format\"}"));
-    } catch (const std::exception& e) {
-        res.setStatus(HttpStatus::InternalServerError);
-        res.json(std::string("{\"error\": \"") + e.what() + "\"}");
+    auto user = userRepo_.findById(user_id);
+    if (user) {
+        res.setStatus(HttpStatus::OK);
+        res.json(user->toSafeJson().dump());
+    } else {
+        res.setStatus(HttpStatus::NotFound);
+        res.json("{\"error\": \"User not found or invalid ID\"}");
     }
 }
 
@@ -165,76 +118,35 @@ void UserController::updateUser(HttpRequest& req, HttpResponse& res) {
 
     if (!extractJson(req, res, payload)) return;
 
+    // Prevent updating sensitive fields manually
     payload.erase("_id");
+    payload.erase("password");
+    payload.erase("password_hash");
 
-    if(payload.empty()){
+    if (payload.empty()) {
         res.setStatus(HttpStatus::BadRequest);
-        res.json("{\"error\": \"No fields to update\"}");
+        res.json("{\"error\": \"No valid fields to update\"}");
         return;
     }
 
-    try {
-        bsoncxx::oid document_id(user_id);
-
-        auto conn = db_pool_.acquire();
-        auto collection = (*conn)["test_db"]["users"];
-        
-        auto filter = bsoncxx::builder::stream::document{} 
-            << "_id" << document_id
-            << bsoncxx::builder::stream::finalize;
-
-        bsoncxx::document::value update_doc = bsoncxx::from_json(payload.dump());
-
-        auto update = bsoncxx::builder::stream::document{}
-            << "$set" << update_doc.view()
-            << bsoncxx::builder::stream::finalize;
-        
-        auto result = collection.update_one(filter.view(), update.view());
-
-        if(result && result->matched_count() > 0){
-            res.setStatus(HttpStatus::OK);
-            res.json("{\"status\": \"success\", \"message\": \"User updated\"}");
-        } else {
-            res.setStatus(HttpStatus::NotFound);
-            res.json("{\"error\": \"User not found\"}");
-        }
-    } catch (const bsoncxx::exception&){
-        res.setStatus(HttpStatus::BadRequest);
-        res.json("{\"error\": \"Invalid user ID format\"}");
-    } catch (const std::exception& e){
-        res.setStatus(HttpStatus::InternalServerError);
-        res.json(std::string("{\"error\": \"") + e.what() + "\"}");
+    if (userRepo_.updateUser(user_id, payload)) {
+        res.setStatus(HttpStatus::OK);
+        res.json("{\"status\": \"success\", \"message\": \"User updated\"}");
+    } else {
+        res.setStatus(HttpStatus::NotFound);
+        res.json("{\"error\": \"User not found or invalid ID\"}");
     }
 }
 
-void UserController::deleteUser(HttpRequest& req, HttpResponse& res){
+void UserController::deleteUser(HttpRequest& req, HttpResponse& res) {
     std::string user_id = req.param("id");
 
-    try {
-        bsoncxx::oid document_id(user_id);
-
-        auto conn = db_pool_.acquire();
-        auto collection = (*conn)["test_db"]["users"];
-
-        auto filter = bsoncxx::builder::stream::document{}
-            << "_id" << document_id
-            << bsoncxx::builder::stream::finalize;
-        
-        auto result = collection.delete_one(filter.view());
-
-        if(result && result->deleted_count() > 0){
-            res.setStatus(HttpStatus::OK);
-            res.json("{\"status\": \"success\", \"message\": \"User deleted\"}");
-        } else {
-            res.setStatus(HttpStatus::NotFound);
-            res.json("{\"error\": \"User not found\"}");
-        }
-    } catch (const bsoncxx::exception&){
-        res.setStatus(HttpStatus::BadRequest);
-        res.json("{\"error\": \"Invalid user ID format\"}");
-    } catch (const std::exception& e){
-        res.setStatus(HttpStatus::InternalServerError);
-        res.json(std::string("{\"error\": \"") + e.what() + "\"}");
+    if (userRepo_.deleteUser(user_id)) {
+        res.setStatus(HttpStatus::OK);
+        res.json("{\"status\": \"success\", \"message\": \"User deleted\"}");
+    } else {
+        res.setStatus(HttpStatus::NotFound);
+        res.json("{\"error\": \"User not found or invalid ID\"}");
     }
 }
 
@@ -243,58 +155,33 @@ void UserController::loginUser(HttpRequest& req, HttpResponse& res){
 
     if (!extractJson(req, res, payload)) return;
 
-    try {
-        std::string username = payload["name"];
-        std::string plaintext_password = payload["password"];
-
-        auto conn = db_pool_.acquire();
-        auto collection = (*conn)["test_db"]["users"];
-        auto query = bsoncxx::builder::stream::document{}
-            << "name" << username
-            << bsoncxx::builder::stream::finalize;
-
-        auto result = collection.find_one(query.view());
-
-        if(result){
-            auto view = result->view();
-
-            if (!view["password_hash"]) {
-                res.setStatus(HttpStatus::Unauthorized);
-                res.json("{\"error\": \"Legacy user: no password set. Please recreate user.\"}");
-                return;
-            }
-
-            std::string stored_hash = std::string(view["password_hash"].get_string().value);
-
-            if (!utils::CryptoUtils::verifyPassword(plaintext_password, stored_hash)) {
-                res.setStatus(HttpStatus::Unauthorized);
-                res.json("{\"error\": \"Invalid username or password\"}");
-                return;
-            }
-
-            std::string id_str = view["_id"].get_oid().value.to_string();
-
-            std::string role = "user";
-
-            if(view["role"]){
-                role = std::string(view["role"].get_string().value);
-            }
-
-            std::string token = utils::JwtUtils::generateToken(id_str, role);
-
-            res.setStatus(HttpStatus::OK);
-            nlohmann::json response;
-            response["status"] = "success";
-            response["token"] = token;
-            res.json(response.dump());
-        } else {
-            res.setStatus(HttpStatus::Unauthorized);
-            res.json("{\"error\": \"User not found\"}");
-        }
-    } catch (std::exception& e){
-        res.setStatus(HttpStatus::InternalServerError);
-        res.json(std::string("{\"error\": \"") + e.what() + "\"}");
+    if (!payload.contains("name") || !payload.contains("password")) {
+        res.setStatus(HttpStatus::BadRequest);
+        res.json("{\"error\": \"Missing 'name' or 'password'\"}");
+        return;
     }
+
+    std::string username = payload["name"];
+    std::string plaintext_password = payload["password"];
+
+    auto user = userRepo_.findByUsername(username);
+
+    if(!user || user->password_hash.empty()){
+        res.setStatus(HttpStatus::Unauthorized);
+        res.json("{\"error\": \"Invalid username or password\"}");
+        return;
+    }
+
+    if (!utils::CryptoUtils::verifyPassword(plaintext_password, user->password_hash)) {
+        res.setStatus(HttpStatus::Unauthorized);
+        res.json("{\"error\": \"Invalid username or password\"}");
+        return;
+    }
+
+    std::string token = utils::JwtUtils::generateToken(user->id, user->role);
+
+    res.setStatus(HttpStatus::OK);
+    res.json("{\"status\": \"success\", \"token\": \"" + token + "\"}");
 }
 
 bool UserController::extractJson(HttpRequest& req, HttpResponse& res, nlohmann::json& out_payload) {

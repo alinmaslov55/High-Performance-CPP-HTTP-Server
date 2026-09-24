@@ -2,14 +2,14 @@
 #define USER_CONTROLLER_HPP
 
 #include "http/http/Router.hpp"
-#include "http/database/MongoPool.hpp"
+#include "http/repositories/UserRepository.hpp"
 
 namespace http {
 
 namespace controllers {
 class UserController {
 public:
-    explicit UserController(db::MongoPool& db_pool);
+    explicit UserController(repositories::UserRepository & repo);
 
     void registerRoutes(Router& router);
 
@@ -23,7 +23,7 @@ private:
 
     bool extractJson(HttpRequest& req, HttpResponse& res, nlohmann::json& out_payload);
 
-    db::MongoPool& db_pool_;
+    repositories::UserRepository& userRepo_;
 };
 } // namespace controllers
 } // namespace http

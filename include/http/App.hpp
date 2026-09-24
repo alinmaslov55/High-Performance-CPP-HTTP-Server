@@ -5,6 +5,7 @@
 #include "http/http/Router.hpp"
 #include "http/database/MongoPool.hpp"
 #include "http/controllers/UserController.hpp"
+#include "http/repositories/UserRepository.hpp"
 
 #include <mongocxx/instance.hpp>
 
@@ -33,6 +34,8 @@ private:
     db::MongoPool db_pool_;
     Router router_;
     
+    // Repositories
+    repositories::UserRepository user_repo_;
     // Controller instances
     controllers::UserController user_controller_;
 
