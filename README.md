@@ -18,7 +18,9 @@ Designed for extreme throughput and low latency, this framework utilizes the **R
 * **Environment Configuration:**
 
 ## Performance Benchmark
+
 Tested on a Debian VM using `wrk` (12 threads, 400 concurrent connections, 30 seconds):
+
 * **Throughput:** 26,054 Requests / Second
 * **Latency:** 15.40 ms avg
 * **Socket Errors:** 0

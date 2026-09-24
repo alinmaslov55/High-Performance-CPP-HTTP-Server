@@ -37,6 +37,9 @@ find_package(jwt-cpp CONFIG REQUIRED)
 # Argon2 for cryptography
 find_package(unofficial-sodium CONFIG REQUIRED)
 
+# redis
+find_package(redis++ CONFIG REQUIRED)
+
 # Main
 add_library(http_server_core
     src/http/HttpHeaders.cpp
@@ -58,6 +61,7 @@ add_library(http_server_core
     src/utils/Logger.cpp
     src/utils/JwtUtils.cpp
     src/utils/CryptoUtils.cpp
+    src/middlewares/RateLimiter.cpp
 )
 target_include_directories(http_server_core PUBLIC include)
 target_link_libraries(http_server_core PUBLIC 
@@ -65,6 +69,7 @@ target_link_libraries(http_server_core PUBLIC
     spdlog::spdlog_header_only
     jwt-cpp::jwt-cpp
     unofficial-sodium::sodium
+    redis++::redis++_static
     $<IF:$<TARGET_EXISTS:mongo::mongocxx_shared>,mongo::mongocxx_shared,mongo::mongocxx_static>
     $<IF:$<TARGET_EXISTS:mongo::bsoncxx_shared>,mongo::bsoncxx_shared,mongo::bsoncxx_static>)
 

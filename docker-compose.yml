@@ -5,10 +5,12 @@ services:
       - "8080:8080"
     environment:
       - MONGO_URI=mongodb://mongodb:27017/test_db
+      - REDIS_URI=tcp://redis:6379
       - JWT_SECRET=production_super_secret_key
       - PORT=8080
     depends_on:
       - mongodb
+      - redis
 
   mongodb:
     image: mongo:7.0
@@ -16,6 +18,11 @@ services:
       - "27018:27017"
     volumes:
       - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
 
 volumes:
   mongo_data:
