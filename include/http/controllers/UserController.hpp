@@ -19,8 +19,9 @@ private:
     void getUserById(HttpRequest& req, HttpResponse& res);
     void updateUser(HttpRequest& req, HttpResponse& res);
     void deleteUser(HttpRequest& req, HttpResponse& res);
-
     void loginUser(HttpRequest& req, HttpResponse& res);
+
+    bool extractJson(HttpRequest& req, HttpResponse& res, nlohmann::json& out_payload);
 
     db::MongoPool& db_pool_;
 };

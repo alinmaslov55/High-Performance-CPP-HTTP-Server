@@ -62,6 +62,7 @@ add_library(http_server_core
     src/utils/JwtUtils.cpp
     src/utils/CryptoUtils.cpp
     src/middlewares/RateLimiter.cpp
+    src/middlewares/AuthMiddleware.cpp
 )
 target_include_directories(http_server_core PUBLIC include)
 target_link_libraries(http_server_core PUBLIC 

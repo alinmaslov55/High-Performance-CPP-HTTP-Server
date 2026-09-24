@@ -1,6 +1,7 @@
 #include "http/controllers/UserController.hpp"
 #include "http/utils/CryptoUtils.hpp"
 #include "http/utils/JwtUtils.hpp"
+#include "http/middlewares/AuthMiddleware.hpp"
 
 #include <bsoncxx/json.hpp>
 #include <bsoncxx/builder/stream/document.hpp>
@@ -11,6 +12,8 @@
 namespace http {
 namespace controllers {
 
+using namespace middlewares;
+
 UserController::UserController(db::MongoPool& db_pool) : db_pool_(db_pool) {}
 
 void UserController::registerRoutes(Router& router) {
@@ -18,26 +21,7 @@ void UserController::registerRoutes(Router& router) {
         this->loginUser(req, res);
     });
 
-    auto requireAuth = [](HttpRequest& req, HttpResponse& res) -> bool {
-        std::string auth_header = std::string(req.header("Authorization")); 
-        
-        if (auth_header.empty() || auth_header.substr(0, 7) != "Bearer ") {
-            res.setStatus(HttpStatus::Unauthorized);
-            res.json("{\"error\": \"Missing or invalid Authorization header\"}");
-            return false;
-        }
-
-        std::string token = auth_header.substr(7);
-        std::string user_id;
-        
-        if (!utils::JwtUtils::verifyToken(token, user_id)) {
-            res.setStatus(HttpStatus::Unauthorized);
-            res.json("{\"error\": \"Invalid or expired token\"}");
-            return false;
-        }
-        
-        return true; // Valid Token
-    };
+    auto requireAuth = middlewares::AuthMiddleware::requireAuth;
 
     router.post("/api/users", [this, requireAuth](HttpRequest& req, HttpResponse& res) {
         this->createUser(req, res);
@@ -62,22 +46,7 @@ void UserController::registerRoutes(Router& router) {
 
 void UserController::createUser(HttpRequest& req, HttpResponse& res) {
     nlohmann::json payload;
-
-    if (req.hasJson()) {
-        payload = req.json();
-    } else if (!req.body().empty()) {
-        try {
-            payload = nlohmann::json::parse(req.body());
-        } catch (...) {
-            res.setStatus(HttpStatus::BadRequest);
-            res.json("{\"error\": \"Invalid JSON\"}");
-            return;
-        }
-    } else {
-        res.setStatus(HttpStatus::BadRequest);
-        res.json("{\"error\": \"Missing request body\"}");
-        return;
-    }
+    if (!extractJson(req, res, payload)) return;
 
     if(!payload.contains("password") || !payload["password"].is_string()){
         res.setStatus(HttpStatus::BadRequest);
@@ -194,21 +163,7 @@ void UserController::updateUser(HttpRequest& req, HttpResponse& res) {
     std::string user_id = req.param("id");
     nlohmann::json payload;
 
-    if(req.hasJson()){
-        payload = req.json();
-    } else if (!req.body().empty()) {
-        try {
-            payload = nlohmann::json::parse(req.body());
-        } catch (...) {
-            res.setStatus(HttpStatus::BadRequest);
-            res.json("{\"error\": \"Invalid JSON\"}");
-            return;
-        }
-    } else {
-        res.setStatus(HttpStatus::BadRequest);
-        res.json("{\"error\": \"Missing request body\"}");
-        return;
-    }
+    if (!extractJson(req, res, payload)) return;
 
     payload.erase("_id");
 
@@ -286,19 +241,7 @@ void UserController::deleteUser(HttpRequest& req, HttpResponse& res){
 void UserController::loginUser(HttpRequest& req, HttpResponse& res){
     nlohmann::json payload;
 
-    try {
-        payload = req.hasJson()? req.json(): nlohmann::json::parse(req.body());
-    } catch (...){
-        res.setStatus(HttpStatus::BadRequest);
-        res.json("{\"error\": \"Invalid JSON\"}");
-        return;
-    }
-
-    if (!payload.contains("name") || !payload.contains("password")) {
-        res.setStatus(HttpStatus::BadRequest);
-        res.json("{\"error\": \"Missing 'name' or 'password' for login\"}");
-        return;
-    }
+    if (!extractJson(req, res, payload)) return;
 
     try {
         std::string username = payload["name"];
@@ -352,6 +295,25 @@ void UserController::loginUser(HttpRequest& req, HttpResponse& res){
         res.setStatus(HttpStatus::InternalServerError);
         res.json(std::string("{\"error\": \"") + e.what() + "\"}");
     }
+}
+
+bool UserController::extractJson(HttpRequest& req, HttpResponse& res, nlohmann::json& out_payload) {
+    if (req.hasJson()) {
+        out_payload = req.json();
+        return true;
+    } else if (!req.body().empty()) {
+        try {
+            out_payload = nlohmann::json::parse(req.body());
+            return true;
+        } catch (...) {
+            res.setStatus(HttpStatus::BadRequest);
+            res.json("{\"error\": \"Invalid JSON\"}");
+            return false;
+        }
+    }
+    res.setStatus(HttpStatus::BadRequest);
+    res.json("{\"error\": \"Missing request body\"}");
+    return false;
 }
 
 } // namespace controllers
