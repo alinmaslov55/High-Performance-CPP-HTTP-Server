@@ -40,6 +40,9 @@ find_package(unofficial-sodium CONFIG REQUIRED)
 # redis
 find_package(redis++ CONFIG REQUIRED)
 
+# openssl
+find_package(OpenSSL REQUIRED)
+
 # Main
 add_library(http_server_core
     src/http/HttpHeaders.cpp
@@ -72,6 +75,8 @@ target_link_libraries(http_server_core PUBLIC
     jwt-cpp::jwt-cpp
     unofficial-sodium::sodium
     redis++::redis++_static
+    OpenSSL::SSL
+    OpenSSL::Crypto
     $<IF:$<TARGET_EXISTS:mongo::mongocxx_shared>,mongo::mongocxx_shared,mongo::mongocxx_static>
     $<IF:$<TARGET_EXISTS:mongo::bsoncxx_shared>,mongo::bsoncxx_shared,mongo::bsoncxx_static>)
 

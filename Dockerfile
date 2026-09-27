@@ -14,13 +14,14 @@ WORKDIR /opt/vcpkg
 RUN git clone https://github.com/microsoft/vcpkg.git . && ./bootstrap-vcpkg.sh
 
 # Install C++ dependencies
-RUN ./vcpkg install libsodium mongo-cxx-driver jwt-cpp redis-plus-plus
+RUN ./vcpkg install libsodium mongo-cxx-driver jwt-cpp redis-plus-plus openssl
 
 WORKDIR /app
 COPY CMakeLists.txt .
 COPY include/ include/
 COPY src/ src/
 COPY tests/ tests/
+COPY certs/ certs/
 
 RUN cmake -B build -S . \
     -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake \

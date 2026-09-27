@@ -1,5 +1,6 @@
 #include "http/App.hpp"
 #include "http/utils/Logger.hpp"
+#include "http/utils/SslManager.hpp"
 #include "http/middlewares/RateLimiter.hpp"
 
 #include <sw/redis++/redis.h>
@@ -41,7 +42,16 @@ App::App(const AppConfiguration& config)
 
 void App::run() {
     LOG_INFO("Application running on port {}", config_.port);
-    LOG_INFO("MongoDB URI: {}", config_.db_uri);    server_.start();
+    LOG_INFO("MongoDB URI: {}", config_.db_uri);
+
+    try {
+        utils::SslManager::getInstance().initialize("certs/server.crt", "certs/server.key");
+        LOG_INFO("TLS Context initialized successfully");
+    } catch (const std::exception& e){
+        LOG_ERROR("Failed to initialize TLS: {}", e.what());
+        return; // Halt boot if SSL fails
+    }
+
     server_.start();
 }
 
