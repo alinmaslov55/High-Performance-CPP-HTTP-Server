@@ -8,6 +8,8 @@ services:
       - REDIS_URI=tcp://redis:6379
       - JWT_SECRET=production_super_secret_key
       - PORT=8080
+      - SSL_CERT_PATH=/app/certs/server.crt
+      - SSL_KEY_PATH=/app/certs/server.key
     depends_on:
       - mongodb
       - redis

@@ -29,7 +29,7 @@ App::App(const AppConfiguration& config)
     });
 
     // Rate Limiting Middleware (Max 5 requests per 10 seconds)
-    auto rateLimit = middlewares::RateLimiter::create(redis_client, 5, 10);
+    auto rateLimit = middlewares::RateLimiter::create(redis_client, 100000, 10);
 
     router_.use([rateLimit](HttpRequest& req, HttpResponse& res) {
         if (req.path() == "/api/login") {
@@ -44,9 +44,14 @@ void App::run() {
     LOG_INFO("Application running on port {}", config_.port);
     LOG_INFO("MongoDB URI: {}", config_.db_uri);
 
+    const char* env_cert = std::getenv("SSL_CERT_PATH");
+    const char* env_key = std::getenv("SSL_KEY_PATH");
+
+    std::string cert_path = env_cert ? env_cert : "certs/server.crt";
+    std::string key_path  = env_key ? env_key : "certs/server.key";
+
     try {
-    utils::SslManager::getInstance().initialize("/app/certs/server.crt", "/app/certs/server.key");        LOG_INFO("TLS Context initialized successfully");
-    } catch (const std::exception& e){
+        utils::SslManager::getInstance().initialize(cert_path, key_path);    } catch (const std::exception& e){
         LOG_ERROR("Failed to initialize TLS: {}", e.what());
         return; // Halt boot if SSL fails
     }
