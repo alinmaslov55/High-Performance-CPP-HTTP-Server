@@ -99,10 +99,10 @@ void TcpServer::Worker::handleNewConnection(){
 
 // TODO: Reduce indentations/tabs
 void TcpServer::Worker::handleClientData(int client_fd){
-	auto it = active_connections_.find(client_fd);
+    auto it = active_connections_.find(client_fd);
     if (it == active_connections_.end()){
-		return;
-	}
+        return;
+    }
 
     std::shared_ptr<ClientConnection>& connection = it->second;
 
@@ -122,96 +122,131 @@ void TcpServer::Worker::handleClientData(int client_fd){
             return;
         }
         
-        HttpRequest request;
         while (true) {
-            ParseResult result = connection->parseRequest(request);
-            
-            if (result == ParseResult::Incomplete) {
-                epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
-                break;
-            }
-            
-            HttpResponse response;
-            
-            if (result == ParseResult::Invalid) {
-                response.setStatus(HttpStatus::BadRequest);
-                response.setBody("400 Bad Request");
-                response.setHeader("Connection", "close");
-                connection->send(response.serialize());
-                disconnectClient(client_fd);
-                return;
-            }
-            
-            if (result == ParseResult::Complete) {
-                std::string_view connection_hdr = request.header("Connection");
-                std::string_view upgrade_hdr = request.header("Upgrade");
+            if (connection->isWebSocket()) { // WEBSOCKET ROUTING (If connection upgraded)
+                WebSocketFrame frame;
+                ParseResult result = connection->parseWebSocketFrame(frame);
 
-                if (HttpHeaders::equalsIgnoreCase(upgrade_hdr, "websocket") &&
-                    connection_hdr.find("Upgrade") != std::string_view::npos){
-
-                    std::string_view client_key = request.header("Sec-WebSocket-Key");
-
-                    if (!client_key.empty()) {
-                        std::string accept_key = utils::WebSocketUtils::generateAcceptKey(client_key);
-
-                        // Building HTTP 101 Switching protocols response
-                        HttpResponse ws_response;
-                        ws_response.setStatus(HttpStatus::SwitchingProtocols);
-                        ws_response.setHeader("Upgrade", "websocket");
-                        ws_response.setHeader("Connection", "Upgrade");
-                        ws_response.setHeader("Sec-WebSocket-Accept", accept_key);
-
-                        connection->send(ws_response.serialize());
-                        connection->consumeParsedRequest();
-
-                        // TODO: Tell ClientConnection it is now in WebSocket mode
-                        LOG_INFO("Upgraded FD {} to Secure WebSocket (wss://)", client_fd);
-
-                        epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
-                        return;
-                    }
+                if (result == ParseResult::Incomplete) {
+                    epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
+                    break;
                 }
 
+                if (result == ParseResult::Complete) {
+                    if (frame.opcode == WebSocketOpcode::Close) {
+                        LOG_INFO("Client FD {} gracefully closed WebSocket", client_fd);
+                        disconnectClient(client_fd);
+                        return;
+                    }
 
-                bool keepAlive = (request.version() == "HTTP/1.1") &&
-                !HttpHeaders::equalsIgnoreCase(request.header("Connection"), "close");
+                    if (frame.opcode == WebSocketOpcode::Text) {
+                        LOG_INFO("Received WS Data from FD {}: {}", client_fd, frame.payload);
+                        
+                        // TODO: Add WS Encoder/Sender
+                    }
 
-                HttpRequest async_request = request;
+                    // Re-arm epoll to listen for the next frame
+                    epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
+                    continue; // Loop again in case multiple frames arrived at once
+                }
 
-                connection->consumeParsedRequest();
+                // If result is Invalid (malformed WS frame), drop the connection
+                if (result == ParseResult::Invalid) {
+                    disconnectClient(client_fd);
+                    return;
+                }
+            } else { // STANDARD HTTP ROUTING
+                HttpRequest request;
+                ParseResult result = connection->parseRequest(request);
+                
+                if (result == ParseResult::Incomplete) {
+                    epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
+                    break;
+                }
+                
+                HttpResponse response;
+                
+                if (result == ParseResult::Invalid) {
+                    response.setStatus(HttpStatus::BadRequest);
+                    response.setBody("400 Bad Request");
+                    response.setHeader("Connection", "close");
+                    connection->send(response.serialize());
+                    disconnectClient(client_fd);
+                    return;
+                }
+                
+                if (result == ParseResult::Complete) {
+                    std::string_view connection_hdr = request.header("Connection");
+                    std::string_view upgrade_hdr = request.header("Upgrade");
 
-                thread_pool_.enqueue([this, connection, async_request, client_fd, keepAlive]() mutable {
-                    try{
-                        auto start_time = std::chrono::steady_clock::now();
-                        HttpResponse response = router_.handle(async_request);
+                    // Intercept WebSocket Upgrades
+                    if (HttpHeaders::equalsIgnoreCase(upgrade_hdr, "websocket") &&
+                        connection_hdr.find("Upgrade") != std::string_view::npos){
 
-                        auto end_time = std::chrono::steady_clock::now();
-                        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+                        std::string_view client_key = request.header("Sec-WebSocket-Key");
 
-                        LOG_INFO("Responded [{}] to {} in {}ms", 
-                            static_cast<int>(response.status()), 
-                            async_request.path(), 
-                            duration_ms);
+                        if (!client_key.empty()) {
+                            std::string accept_key = utils::WebSocketUtils::generateAcceptKey(client_key);
 
-                        response.setHeader("Connection", keepAlive ? "keep-alive": "close");
+                            // Building HTTP 101 Switching protocols response
+                            HttpResponse ws_response;
+                            ws_response.setStatus(HttpStatus::SwitchingProtocols);
+                            ws_response.setHeader("Upgrade", "websocket");
+                            ws_response.setHeader("Connection", "Upgrade");
+                            ws_response.setHeader("Sec-WebSocket-Accept", accept_key);
 
-                        connection->send(response.serialize());
-                        connection->updateActivity();
+                            connection->send(ws_response.serialize());
+                            connection->consumeParsedRequest();
 
-                        if(keepAlive && TcpServer::isRunning()){
+                            connection->upgradeToWebSocket();
+                            LOG_INFO("Upgraded FD {} to Secure WebSocket (wss://)", client_fd);
+
                             epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
-                        } else {
+                            return; // Stop HTTP processing, wait for first WS frame
+                        }
+                    }
+
+                    // Standard HTTP ThreadPool Offloading
+                    bool keepAlive = (request.version() == "HTTP/1.1") &&
+                    !HttpHeaders::equalsIgnoreCase(request.header("Connection"), "close");
+
+                    HttpRequest async_request = request;
+
+                    connection->consumeParsedRequest();
+
+                    thread_pool_.enqueue([this, connection, async_request, client_fd, keepAlive]() mutable {
+                        try{
+                            auto start_time = std::chrono::steady_clock::now();
+                            HttpResponse response = router_.handle(async_request);
+
+                            auto end_time = std::chrono::steady_clock::now();
+                            auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+
+                            LOG_INFO("Responded [{}] to {} in {}ms", 
+                                static_cast<int>(response.status()), 
+                                async_request.path(), 
+                                duration_ms);
+
+                            response.setHeader("Connection", keepAlive ? "keep-alive": "close");
+
+                            connection->send(response.serialize());
+                            connection->updateActivity();
+
+                            if(keepAlive && TcpServer::isRunning()){
+                                epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
+                            } else {
+                                ::shutdown(client_fd, SHUT_RDWR);
+                                ::close(client_fd);
+                            }
+                        } catch (const std::exception& e){
+                            LOG_ERROR("Async task failed for FD {}: {}", client_fd, e.what());
                             ::shutdown(client_fd, SHUT_RDWR);
                             ::close(client_fd);
                         }
-                    } catch (const std::exception& e){
-                        LOG_ERROR("Async task failed for FD {}: {}", client_fd, e.what());
-                        ::shutdown(client_fd, SHUT_RDWR);
-                        ::close(client_fd);
-                    }
-                });
+                    });
 
-                return;
+                    return;
+                }
             }
         }
     }catch(const std::exception& e){

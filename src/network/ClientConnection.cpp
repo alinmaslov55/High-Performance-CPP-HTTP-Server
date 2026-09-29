@@ -120,4 +120,80 @@ bool ClientConnection::doHandshake(uint32_t& out_epoll_events){
 	throw std::runtime_error("SSL_accept failed");
 }
 
+void ClientConnection::upgradeToWebSocket() {
+	is_websocket_ = true;
+	parser_.reset();
+}
+
+bool ClientConnection::isWebSocket() const {
+	return is_websocket_;
+}
+
+ParseResult ClientConnection::parseWebSocketFrame(WebSocketFrame& out_frame) {
+    std::string_view data = readBuffer_.data();
+
+    // Needed at least 2 bytes just to read the header and length type
+    if (data.size() < 2) {
+        return ParseResult::Incomplete;
+    }
+
+    const auto* bytes = reinterpret_cast<const uint8_t*>(data.data());
+
+    // Decode Byte 0
+    bool fin = (bytes[0] & 0x80) != 0;
+    uint8_t opcode = bytes[0] & 0x0F;
+
+    // Decode Byte 1
+    bool masked = (bytes[1] & 0x80) != 0;
+    uint64_t payload_len = bytes[1] & 0x7F;
+
+    size_t header_len = 2;
+
+    // Calculate actual payload length and header size
+    if (payload_len == 126) {
+        if (data.size() < 4) return ParseResult::Incomplete;
+        payload_len = (static_cast<uint64_t>(bytes[2]) << 8) | static_cast<uint64_t>(bytes[3]);
+        header_len = 4;
+    } else if (payload_len == 127) {
+        if (data.size() < 10) return ParseResult::Incomplete;
+        payload_len = 0;
+        for (int i = 0; i < 8; ++i) {
+            payload_len = (payload_len << 8) | static_cast<uint64_t>(bytes[2 + i]);
+        }
+        header_len = 10;
+    }
+
+    // Extract the masking key (Client to Server frames MUST be masked)
+    uint8_t masking_key[4] = {0};
+    if (masked) {
+        if (data.size() < header_len + 4) return ParseResult::Incomplete;
+        for (int i = 0; i < 4; ++i) {
+            masking_key[i] = bytes[header_len + i];
+        }
+        header_len += 4;
+    }
+
+    // Ensure we have received the ENTIRE frame over TCP before processing
+    if (data.size() < header_len + payload_len) {
+        return ParseResult::Incomplete; 
+    }
+
+    // Extract and unmask the payload (XOR cipher)
+    std::string payload;
+    payload.resize(payload_len);
+    for (size_t i = 0; i < payload_len; ++i) {
+        payload[i] = bytes[header_len + i] ^ (masked ? masking_key[i % 4] : 0);
+    }
+
+    // Populate the output struct
+    out_frame.fin = fin;
+    out_frame.opcode = static_cast<WebSocketOpcode>(opcode);
+    out_frame.payload = std::move(payload);
+
+    // Consume the exact byte length of this frame from the network buffer
+    readBuffer_.consume(header_len + payload_len);
+
+    return ParseResult::Complete;
+}
+
 } // namespace http

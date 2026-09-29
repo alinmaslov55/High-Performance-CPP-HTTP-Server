@@ -16,6 +16,21 @@
 
 namespace http {
 
+enum class WebSocketOpcode : uint8_t {
+	Continuation = 0x0,
+	Text = 0x1,
+	Binary = 0x2,
+	Close = 0x8,
+	Ping = 0x9,
+	Pong = 0xA
+};
+
+struct WebSocketFrame {
+	bool fin;
+	WebSocketOpcode opcode;
+	std::string payload;
+};
+
 /**
  * @brief Active session with a client
  */
@@ -57,8 +72,15 @@ class ClientConnection {
 	[[nodiscard]]
 	std::string_view data() const noexcept;
 
+	// HTTP Parsing
 	ParseResult parseRequest(HttpRequest &request);
 	void consumeParsedRequest();
+
+	// WebSocket State and Parsing
+	void upgradeToWebSocket();
+	[[nodiscard]]
+	bool isWebSocket() const;
+	ParseResult parseWebSocketFrame(WebSocketFrame& out_frame);
 
 	void updateActivity();
 
@@ -68,6 +90,7 @@ class ClientConnection {
 	Socket socket_;
 	SSL* ssl_;
 	bool handshakeComplete_;
+	bool is_websocket_{false};
 
 	ReadBuffer readBuffer_;
 	HttpParser parser_;
