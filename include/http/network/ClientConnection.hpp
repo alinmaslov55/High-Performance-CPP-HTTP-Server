@@ -6,6 +6,9 @@
 #include <string_view>
 #include <chrono>
 
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
 #include "http/http/HttpParser.hpp"
 #include "http/http/HttpRequest.hpp"
 #include "http/network/ReadBuffer.hpp"
@@ -18,7 +21,7 @@ namespace http {
  */
 class ClientConnection {
   public:
-	explicit ClientConnection(Socket socket);
+	explicit ClientConnection(Socket socket, SSL* ssl);
 
 	ClientConnection(const ClientConnection &) = delete;
 	ClientConnection &operator=(const ClientConnection &) = delete;
@@ -26,7 +29,10 @@ class ClientConnection {
 	ClientConnection(ClientConnection &&) noexcept = default;
 	ClientConnection &operator=(ClientConnection &&) noexcept = default;
 
-	~ClientConnection() = default;
+	~ClientConnection();
+
+	bool doHandshake(uint32_t& out_epoll_events);
+	bool isHandshakeComplete() const { return handshakeComplete_; }
 
 	/**
 	 * @brief Reads data from socket and appends to an internal buffer
@@ -60,6 +66,9 @@ class ClientConnection {
 	bool isIdle(int timeoutSeconds) const;
   private:
 	Socket socket_;
+	SSL* ssl_;
+	bool handshakeComplete_;
+
 	ReadBuffer readBuffer_;
 	HttpParser parser_;
 	std::chrono::steady_clock::time_point lastActivity_ = std::chrono::steady_clock::now();

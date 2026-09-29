@@ -64,6 +64,7 @@ add_library(http_server_core
     src/utils/Logger.cpp
     src/utils/JwtUtils.cpp
     src/utils/CryptoUtils.cpp
+    src/utils/SslManager.cpp
     src/middlewares/RateLimiter.cpp
     src/middlewares/AuthMiddleware.cpp
     src/repositories/UserRepository.cpp

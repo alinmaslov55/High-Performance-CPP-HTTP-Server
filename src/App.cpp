@@ -45,8 +45,7 @@ void App::run() {
     LOG_INFO("MongoDB URI: {}", config_.db_uri);
 
     try {
-        utils::SslManager::getInstance().initialize("certs/server.crt", "certs/server.key");
-        LOG_INFO("TLS Context initialized successfully");
+    utils::SslManager::getInstance().initialize("/app/certs/server.crt", "/app/certs/server.key");        LOG_INFO("TLS Context initialized successfully");
     } catch (const std::exception& e){
         LOG_ERROR("Failed to initialize TLS: {}", e.what());
         return; // Halt boot if SSL fails

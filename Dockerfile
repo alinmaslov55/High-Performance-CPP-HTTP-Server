@@ -21,7 +21,7 @@ COPY CMakeLists.txt .
 COPY include/ include/
 COPY src/ src/
 COPY tests/ tests/
-COPY certs/ certs/
+COPY certs/ /app/certs/
 
 RUN cmake -B build -S . \
     -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake \
@@ -39,6 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 
 COPY --from=builder /app/build/http_server .
+COPY certs/ /app/certs/
 
 EXPOSE 8080
 

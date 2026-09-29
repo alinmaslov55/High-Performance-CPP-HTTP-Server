@@ -2,6 +2,7 @@
 #include "http/network/ClientConnection.hpp"
 #include "http/http/HttpHeaders.hpp"
 #include "http/utils/Logger.hpp"
+#include "http/utils/SslManager.hpp"
 
 #include <iostream>
 #include <chrono>
@@ -85,7 +86,12 @@ void TcpServer::Worker::handleNewConnection(){
 
         int client_fd = client_socket.fd();
         client_socket.setNonBlocking();
-		active_connections_[client_fd] = std::make_shared<ClientConnection>(std::move(client_socket));
+
+        SSL_CTX* ctx = utils::SslManager::getInstance().getContext();
+        SSL* ssl = SSL_new(ctx);
+        SSL_set_fd(ssl, client_fd);
+
+		active_connections_[client_fd] = std::make_shared<ClientConnection>(std::move(client_socket), ssl);
         epoll_.add(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
 	}
 }
@@ -101,6 +107,14 @@ void TcpServer::Worker::handleClientData(int client_fd){
     try{
         connection->updateActivity();
         
+        if(!connection->isHandshakeComplete()){
+            uint32_t next_epoll_events = 0;
+            if(!connection->doHandshake(next_epoll_events)){
+                epoll_.modify(client_fd, next_epoll_events);
+                return;
+            }
+        }
+
         if (!connection->read()) {
             disconnectClient(client_fd);
             return;
