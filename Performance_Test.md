@@ -19,7 +19,7 @@ Requests/sec:  23846.02
 Transfer/sec:      2.89MB
 ```
 
-- Performance test after TLS redis + other features
+- Performance test after TLS redis + other features(Docker Container)
 
 ```bash
 $ wrk -t12 -c400 -d30s -s login_test.lua https://localhost:8080/api/users

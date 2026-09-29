@@ -3,6 +3,7 @@
 #include "http/http/HttpHeaders.hpp"
 #include "http/utils/Logger.hpp"
 #include "http/utils/SslManager.hpp"
+#include "http/utils/WebSocketUtils.hpp"
 
 #include <iostream>
 #include <chrono>
@@ -96,6 +97,7 @@ void TcpServer::Worker::handleNewConnection(){
 	}
 }
 
+// TODO: Reduce indentations/tabs
 void TcpServer::Worker::handleClientData(int client_fd){
 	auto it = active_connections_.find(client_fd);
     if (it == active_connections_.end()){
@@ -141,6 +143,36 @@ void TcpServer::Worker::handleClientData(int client_fd){
             }
             
             if (result == ParseResult::Complete) {
+                std::string_view connection_hdr = request.header("Connection");
+                std::string_view upgrade_hdr = request.header("Upgrade");
+
+                if (HttpHeaders::equalsIgnoreCase(upgrade_hdr, "websocket") &&
+                    connection_hdr.find("Upgrade") != std::string_view::npos){
+
+                    std::string_view client_key = request.header("Sec-WebSocket-Key");
+
+                    if (!client_key.empty()) {
+                        std::string accept_key = utils::WebSocketUtils::generateAcceptKey(client_key);
+
+                        // Building HTTP 101 Switching protocols response
+                        HttpResponse ws_response;
+                        ws_response.setStatus(HttpStatus::SwitchingProtocols);
+                        ws_response.setHeader("Upgrade", "websocket");
+                        ws_response.setHeader("Connection", "Upgrade");
+                        ws_response.setHeader("Sec-WebSocket-Accept", accept_key);
+
+                        connection->send(ws_response.serialize());
+                        connection->consumeParsedRequest();
+
+                        // TODO: Tell ClientConnection it is now in WebSocket mode
+                        LOG_INFO("Upgraded FD {} to Secure WebSocket (wss://)", client_fd);
+
+                        epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
+                        return;
+                    }
+                }
+
+
                 bool keepAlive = (request.version() == "HTTP/1.1") &&
                 !HttpHeaders::equalsIgnoreCase(request.header("Connection"), "close");
 
