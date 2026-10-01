@@ -81,6 +81,7 @@ class ClientConnection {
 	[[nodiscard]]
 	bool isWebSocket() const;
 	ParseResult parseWebSocketFrame(WebSocketFrame& out_frame);
+	void sendWebSocketMessage(const std::string& payload, WebSocketOpcode opcode = WebSocketOpcode::Text);
 
 	void updateActivity();
 

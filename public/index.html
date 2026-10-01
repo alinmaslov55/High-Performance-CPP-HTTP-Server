@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h2>C++ WebSocket Test</h2>
+    <div id="messages"></div>
+    <script>
+        const ws = new WebSocket("wss://localhost:8080/api/chat");
+        ws.onopen = () => ws.send("Hello from proper HTML!");
+        ws.onmessage = (e) => {
+            document.getElementById("messages").innerHTML += "<p>" + e.data + "</p>";
+        };
+    </script>
+</body>
+</html>

@@ -10,6 +10,7 @@ services:
       - PORT=8080
       - SSL_CERT_PATH=/app/certs/server.crt
       - SSL_KEY_PATH=/app/certs/server.key
+      - PUBLIC_DIR_PATH=/app/public
     depends_on:
       - mongodb
       - redis

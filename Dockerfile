@@ -40,6 +40,7 @@ WORKDIR /app
 
 COPY --from=builder /app/build/http_server .
 COPY certs/ /app/certs/
+COPY public/ /app/public/
 
 EXPOSE 8080
 

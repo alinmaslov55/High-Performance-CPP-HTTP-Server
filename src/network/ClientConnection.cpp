@@ -196,4 +196,35 @@ ParseResult ClientConnection::parseWebSocketFrame(WebSocketFrame& out_frame) {
     return ParseResult::Complete;
 }
 
+void ClientConnection::sendWebSocketMessage(const std::string& payload, WebSocketOpcode opcode) {
+    std::string frame;
+    const size_t len = payload.size();
+
+    // Byte 0: FIN flag (0x80) OR'd with the Opcode
+    frame.push_back(static_cast<char>(0x80 | static_cast<uint8_t>(opcode)));
+
+    // Byte 1 + Length Extension
+    if (len < 126) {
+        // For length < 126, Byte 1 is just the length (MASK bit is 0)
+        frame.push_back(static_cast<char>(len));
+    } else if (len <= 65535) {
+        // For length <= 64KB, Byte 1 is 126, followed by 2 bytes of length
+        frame.push_back(static_cast<char>(126));
+        frame.push_back(static_cast<char>((len >> 8) & 0xFF));
+        frame.push_back(static_cast<char>(len & 0xFF));
+    } else {
+        // For massive payloads, Byte 1 is 127, followed by 8 bytes of length
+        frame.push_back(static_cast<char>(127));
+        for (int i = 7; i >= 0; --i) {
+            frame.push_back(static_cast<char>((len >> (i * 8)) & 0xFF));
+        }
+    }
+
+    // Append the raw payload (Server-to-Client frames are NEVER masked)
+    frame.append(payload);
+
+    // Send it down the encrypted TLS socket!
+    send(frame);
+}
+
 } // namespace http

@@ -141,8 +141,9 @@ void TcpServer::Worker::handleClientData(int client_fd){
 
                     if (frame.opcode == WebSocketOpcode::Text) {
                         LOG_INFO("Received WS Data from FD {}: {}", client_fd, frame.payload);
-                        
-                        // TODO: Add WS Encoder/Sender
+
+                        std::string reply = "Server says: I received '" + frame.payload + "'";
+                        connection->sendWebSocketMessage(reply);
                     }
 
                     // Re-arm epoll to listen for the next frame

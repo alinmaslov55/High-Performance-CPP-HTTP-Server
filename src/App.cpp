@@ -19,6 +19,12 @@ App::App(const AppConfiguration& config)
       user_controller_(user_repo_),
       server_(config_.port, router_)
 {
+    const char* env_public_dir = std::getenv("PUBLIC_DIR_PATH");
+    std::string public_dir = env_public_dir ? env_public_dir : "public";
+
+    router_.serveFiles("/", public_dir);
+    LOG_INFO("Serving static files from: {}", public_dir);
+
     std::string redis_uri = std::getenv("REDIS_URI") ? std::getenv("REDIS_URI") : "tcp://localhost:6379";
     auto redis_client = std::make_shared<sw::redis::Redis>(redis_uri);
 
