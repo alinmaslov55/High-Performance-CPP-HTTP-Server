@@ -77,7 +77,9 @@ class ClientConnection {
 	void consumeParsedRequest();
 
 	// WebSocket State and Parsing
-	void upgradeToWebSocket();
+	void upgradeToWebSocket(std::string path);
+	[[nodiscard]]
+	std::string_view getWsPath() const;
 	[[nodiscard]]
 	bool isWebSocket() const;
 	ParseResult parseWebSocketFrame(WebSocketFrame& out_frame);
@@ -92,6 +94,7 @@ class ClientConnection {
 	SSL* ssl_;
 	bool handshakeComplete_;
 	bool is_websocket_{false};
+	std::string ws_path_;
 
 	ReadBuffer readBuffer_;
 	HttpParser parser_;

@@ -1,4 +1,6 @@
 #include <http/http/Router.hpp>
+#include "http/network/ClientConnection.hpp"
+#include "http/utils/Logger.hpp"
 
 #include <string>
 #include <utility>
@@ -309,6 +311,20 @@ void Router::serveFiles(std::string mountPoint, std::string directory){
 }
 void Router::use(Middleware middleware){
 	global_middlewares_.push_back(std::move(middleware));
+}
+
+void Router::ws(std::string path, WsHandler handler){
+	ws_routes_[std::move(path)] = std::move(handler);
+}
+
+void Router::handleWs(std::shared_ptr<http::ClientConnection> &connection, const http::WebSocketFrame &frame) const {
+	auto it = ws_routes_.find(std::string(connection->getWsPath()));
+    if (it != ws_routes_.end()) {
+        it->second(connection, frame);
+    } else {
+        // We shouldn't hit this normally, but good for safety!
+        LOG_WARN("No WebSocket handler found for path: {}", connection->getWsPath());
+    }
 }
 
 } // namespace http

@@ -18,10 +18,10 @@
 namespace http {
 
 TcpServer::TcpServer(int port, const Router& router)
-	: port_(port),
-	router_(router),
-	num_threads_(std::thread::hardware_concurrency() > 0 ?
-		std::thread::hardware_concurrency() : DEFAULT_THREADS),
+    : port_(port),
+    router_(router),
+    num_threads_(std::thread::hardware_concurrency() > 0 ?
+        std::thread::hardware_concurrency() : DEFAULT_THREADS),
         thread_pool_(DEFAULT_THREADS * 2)
 {}
 
@@ -78,8 +78,8 @@ void TcpServer::Worker::run() {
 }
 
 void TcpServer::Worker::handleNewConnection(){
-	while(true){
-		Socket client_socket = server_socket_.accept();
+    while(true){
+        Socket client_socket = server_socket_.accept();
 
         if (!client_socket.valid()) {
             break;
@@ -92,12 +92,11 @@ void TcpServer::Worker::handleNewConnection(){
         SSL* ssl = SSL_new(ctx);
         SSL_set_fd(ssl, client_fd);
 
-		active_connections_[client_fd] = std::make_shared<ClientConnection>(std::move(client_socket), ssl);
+        active_connections_[client_fd] = std::make_shared<ClientConnection>(std::move(client_socket), ssl);
         epoll_.add(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
-	}
+    }
 }
 
-// TODO: Reduce indentations/tabs
 void TcpServer::Worker::handleClientData(int client_fd){
     auto it = active_connections_.find(client_fd);
     if (it == active_connections_.end()){
@@ -139,16 +138,33 @@ void TcpServer::Worker::handleClientData(int client_fd){
                         return;
                     }
 
-                    if (frame.opcode == WebSocketOpcode::Text) {
-                        LOG_INFO("Received WS Data from FD {}: {}", client_fd, frame.payload);
-
-                        std::string reply = "Server says: I received '" + frame.payload + "'";
-                        connection->sendWebSocketMessage(reply);
+                    // Delegate Text and Binary frames to the Router
+                    if (frame.opcode == WebSocketOpcode::Text || frame.opcode == WebSocketOpcode::Binary) {
+                        WebSocketFrame async_frame = std::move(frame);
+                        
+                        thread_pool_.enqueue([this, connection, async_frame, client_fd]() mutable {
+                            try {
+                                router_.handleWs(connection, async_frame);
+                                
+                                if (TcpServer::isRunning()) {
+                                    epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
+                                } else {
+                                    ::shutdown(client_fd, SHUT_RDWR);
+                                    ::close(client_fd);
+                                }
+                            } catch (const std::exception& e) {
+                                LOG_ERROR("WS task failed for FD {}: {}", client_fd, e.what());
+                                ::shutdown(client_fd, SHUT_RDWR);
+                                ::close(client_fd);
+                            }
+                        });
+                        
+                        return; // Exit the loop; the ThreadPool will re-arm epoll when finished
                     }
 
-                    // Re-arm epoll to listen for the next frame
+                    // Re-arm epoll for non-data frames (like Ping/Pong)
                     epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
-                    continue; // Loop again in case multiple frames arrived at once
+                    continue; 
                 }
 
                 // If result is Invalid (malformed WS frame), drop the connection
@@ -199,8 +215,8 @@ void TcpServer::Worker::handleClientData(int client_fd){
                             connection->send(ws_response.serialize());
                             connection->consumeParsedRequest();
 
-                            connection->upgradeToWebSocket();
-                            LOG_INFO("Upgraded FD {} to Secure WebSocket (wss://)", client_fd);
+                            connection->upgradeToWebSocket(std::string(request.path()));
+                            LOG_INFO("Upgraded FD {} to Secure WebSocket (wss://) on path: {}", client_fd, request.path());
 
                             epoll_.modify(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
                             return; // Stop HTTP processing, wait for first WS frame
@@ -257,8 +273,8 @@ void TcpServer::Worker::handleClientData(int client_fd){
 }
 
 void TcpServer::Worker::disconnectClient(int client_fd){
-	epoll_.remove(client_fd);
-	active_connections_.erase(client_fd);
+    epoll_.remove(client_fd);
+    active_connections_.erase(client_fd);
 }
 
 void TcpServer::Worker::sweepIdleConnections() {

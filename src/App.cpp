@@ -28,6 +28,14 @@ App::App(const AppConfiguration& config)
     std::string redis_uri = std::getenv("REDIS_URI") ? std::getenv("REDIS_URI") : "tcp://localhost:6379";
     auto redis_client = std::make_shared<sw::redis::Redis>(redis_uri);
 
+    router_.ws("/api/chat", [](std::shared_ptr<http::ClientConnection>& conn, const http::WebSocketFrame& frame) {
+        if (frame.opcode == http::WebSocketOpcode::Text) {
+            LOG_INFO("Controller intercepted WS message: {}", frame.payload);
+            
+            conn->sendWebSocketMessage("Hello from the specialized WS Controller");
+        }
+    });
+
     // Global Logging Middleware
     router_.use([](HttpRequest& req, HttpResponse& res){
         LOG_INFO("Incoming request -> {}", req.path());

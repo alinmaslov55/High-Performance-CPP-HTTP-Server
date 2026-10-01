@@ -12,10 +12,14 @@
 
 namespace http {
 
+class ClientConnection;
+struct WebSocketFrame;
+
 class Router {
 public:
     using Handler = std::function<void(HttpRequest&, HttpResponse&)>;
     using Middleware = std::function<bool(HttpRequest&, HttpResponse&)>;
+    using WsHandler = std::function<void(std::shared_ptr<ClientConnection>&, const WebSocketFrame&)>;
 
     Router() = default;
 
@@ -38,6 +42,9 @@ public:
     [[nodiscard]]
     HttpResponse handle(HttpRequest& request) const;
 
+    void ws(std::string path, WsHandler handler);
+    void handleWs(std::shared_ptr<ClientConnection>& connection, const WebSocketFrame& frame) const;
+
     void serveFiles(std::string mountPoint, std::string directory);
 
 private:
@@ -51,6 +58,7 @@ private:
 
     std::vector<Route> routes_;
     std::vector<Middleware> global_middlewares_;
+    std::unordered_map<std::string, WsHandler> ws_routes_;
 };
 
 } // namespace http

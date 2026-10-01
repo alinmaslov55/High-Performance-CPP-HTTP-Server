@@ -120,9 +120,14 @@ bool ClientConnection::doHandshake(uint32_t& out_epoll_events){
 	throw std::runtime_error("SSL_accept failed");
 }
 
-void ClientConnection::upgradeToWebSocket() {
+void ClientConnection::upgradeToWebSocket(std::string path) {
 	is_websocket_ = true;
+    ws_path_ = std::move(path);
 	parser_.reset();
+}
+
+std::string_view ClientConnection::getWsPath() const {
+    return ws_path_;
 }
 
 bool ClientConnection::isWebSocket() const {
