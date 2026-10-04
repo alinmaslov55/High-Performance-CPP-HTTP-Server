@@ -93,6 +93,9 @@ void TcpServer::Worker::handleNewConnection(){
         SSL_set_fd(ssl, client_fd);
 
         active_connections_[client_fd] = std::make_shared<ClientConnection>(std::move(client_socket), ssl);
+        
+        TcpServer::active_connections_.fetch_add(1, std::memory_order_relaxed);
+
         epoll_.add(client_fd, EPOLLIN | EPOLLET | EPOLLONESHOT);
     }
 }
@@ -231,6 +234,8 @@ void TcpServer::Worker::handleClientData(int client_fd){
 
                     connection->consumeParsedRequest();
 
+                    TcpServer::total_requests_.fetch_add(1, std::memory_order_relaxed);
+
                     thread_pool_.enqueue([this, connection, async_request, client_fd, keepAlive]() mutable {
                         try{
                             auto start_time = std::chrono::steady_clock::now();
@@ -274,7 +279,9 @@ void TcpServer::Worker::handleClientData(int client_fd){
 
 void TcpServer::Worker::disconnectClient(int client_fd){
     epoll_.remove(client_fd);
-    active_connections_.erase(client_fd);
+    if(active_connections_.erase(client_fd) > 0){
+        TcpServer::active_connections_.fetch_sub(1, std::memory_order_relaxed);
+    }
 }
 
 void TcpServer::Worker::sweepIdleConnections() {

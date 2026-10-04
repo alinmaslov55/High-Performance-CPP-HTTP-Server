@@ -42,6 +42,13 @@ class TcpServer {
 	 */
 	static bool isRunning();
 
+	[[nodiscard]] std::size_t getPendingTaskCount() const {
+		return thread_pool_.getPendingTaskCount();
+	}
+
+	static inline std::atomic<size_t> active_connections_{0};
+	static inline std::atomic<size_t> total_requests_{0};
+
   private:
 	class Worker{
 	public:

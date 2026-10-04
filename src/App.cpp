@@ -17,7 +17,8 @@ App::App(const AppConfiguration& config)
       router_(),
       user_repo_(db_pool_),
       user_controller_(user_repo_),
-      server_(config_.port, router_)
+      server_(config_.port, router_),
+      telemetry_broadcaster_(server_)
 {
     const char* env_public_dir = std::getenv("PUBLIC_DIR_PATH");
     std::string public_dir = env_public_dir ? env_public_dir : "public";
@@ -27,6 +28,13 @@ App::App(const AppConfiguration& config)
 
     std::string redis_uri = std::getenv("REDIS_URI") ? std::getenv("REDIS_URI") : "tcp://localhost:6379";
     auto redis_client = std::make_shared<sw::redis::Redis>(redis_uri);
+
+    router_.ws("/api/telemetry", [this](std::shared_ptr<http::ClientConnection>& conn, const http::WebSocketFrame& frame) {
+        if (frame.opcode == http::WebSocketOpcode::Text && frame.payload == "subscribe") {
+            this->telemetry_broadcaster_.addClient(conn);
+            LOG_INFO("New telemetry dashboard connected!");
+        }
+    });
 
     router_.ws("/api/chat", [](std::shared_ptr<http::ClientConnection>& conn, const http::WebSocketFrame& frame) {
         if (frame.opcode == http::WebSocketOpcode::Text) {
@@ -70,7 +78,11 @@ void App::run() {
         return; // Halt boot if SSL fails
     }
 
+    telemetry_broadcaster_.start();
+
     server_.start();
+
+    telemetry_broadcaster_.stop();
 }
 
 } // namespace http

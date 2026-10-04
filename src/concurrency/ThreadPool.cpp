@@ -24,6 +24,8 @@ ThreadPool::ThreadPool(std::size_t numThreads) : ring_buffer_(CAPACITY) {
 
                 space_available_.release();
 
+                pending_tasks_.fetch_sub(1, std::memory_order_relaxed);
+
                 if(task){
                     task();
                 }
@@ -47,6 +49,7 @@ ThreadPool::~ThreadPool(){
 }
 
 void ThreadPool::enqueue(std::function<void()> task){
+    pending_tasks_.fetch_add(1, std::memory_order_relaxed);
     space_available_.acquire();
 
     while(lock_.test_and_set(std::memory_order_acquire)){

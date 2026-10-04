@@ -1,13 +1,56 @@
 <!DOCTYPE html>
 <html>
+<head>
+    <title>C++ Engine Telemetry</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #111; color: #fff; padding: 40px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 800px; }
+        .card { background: #222; padding: 20px; border-radius: 8px; text-align: center; }
+        .value { font-size: 48px; font-weight: bold; color: #00ff88; margin: 10px 0; }
+        .label { font-size: 14px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .status { margin-top: 30px; font-size: 14px; color: #ff3366; }
+    </style>
+</head>
 <body>
-    <h2>C++ WebSocket Test</h2>
-    <div id="messages"></div>
+    <h2>C++ Server Live Telemetry</h2>
+    
+    <div class="grid">
+        <div class="card">
+            <div class="label">Active Connections</div>
+            <div class="value" id="val-connections">0</div>
+        </div>
+        <div class="card">
+            <div class="label">Total HTTP Requests</div>
+            <div class="value" id="val-requests">0</div>
+        </div>
+        <div class="card">
+            <div class="label">ThreadPool Queue</div>
+            <div class="value" id="val-queue">0</div>
+        </div>
+    </div>
+
+    <div class="status" id="status">Connecting to engine...</div>
+
     <script>
-        const ws = new WebSocket("wss://localhost:8080/api/chat");
-        ws.onopen = () => ws.send("Hello from proper HTML!");
+        const ws = new WebSocket("wss://localhost:8080/api/telemetry");
+        
+        ws.onopen = () => {
+            document.getElementById("status").innerText = "Connected (Live)";
+            document.getElementById("status").style.color = "#00ff88";
+            // Trigger the server registration
+            ws.send("subscribe");
+        };
+
         ws.onmessage = (e) => {
-            document.getElementById("messages").innerHTML += "<p>" + e.data + "</p>";
+            const data = JSON.parse(e.data);
+            document.getElementById("val-connections").innerText = data.active_connections;
+            document.getElementById("val-requests").innerText = data.total_requests;
+            document.getElementById("val-queue").innerText = data.queued_tasks;
+        };
+
+        ws.onclose = () => {
+            document.getElementById("status").innerText = "Disconnected";
+            document.getElementById("status").style.color = "#ff3366";
         };
     </script>
 </body>

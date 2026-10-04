@@ -277,6 +277,10 @@ void Router::serveFiles(std::string mountPoint, std::string directory){
         std::string_view reqPath = req.path();
         std::string relativePath = std::string(reqPath.substr(mountPoint.size()));
 
+        if (relativePath.empty() || relativePath == "/") {
+            relativePath = "index.html";
+        }
+
         if (relativePath.find("..") != std::string::npos) {
             res.setStatus(HttpStatus::Forbidden);
             res.setBody("403 Forbidden");
@@ -284,6 +288,12 @@ void Router::serveFiles(std::string mountPoint, std::string directory){
         }
 
         fs::path fullPath = fs::path(directory) / relativePath;
+
+        if (!fs::exists(fullPath) || !fs::is_regular_file(fullPath)) {
+            res.setStatus(HttpStatus::NotFound);
+            res.setBody("404 File Not Found");
+            return;
+        }
 
         std::ifstream file(fullPath, std::ios::binary | std::ios::ate);
 
@@ -294,6 +304,13 @@ void Router::serveFiles(std::string mountPoint, std::string directory){
         }
 
         std::streamsize size = file.tellg();
+        
+        if (size < 0) {
+            res.setStatus(HttpStatus::InternalServerError);
+            res.setBody("500 Internal Server Error");
+            return;
+        }
+        
         file.seekg(0, std::ios::beg);
 
         std::string buffer(size, '\0');
@@ -309,6 +326,7 @@ void Router::serveFiles(std::string mountPoint, std::string directory){
 
     routes_.push_back(Route{HttpMethod::GET, std::move(mountPoint), std::move(fileHandler), true});
 }
+
 void Router::use(Middleware middleware){
 	global_middlewares_.push_back(std::move(middleware));
 }

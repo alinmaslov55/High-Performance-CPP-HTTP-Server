@@ -6,6 +6,7 @@
 #include "http/database/MongoPool.hpp"
 #include "http/controllers/UserController.hpp"
 #include "http/repositories/UserRepository.hpp"
+#include "http/services/TelemetryBroadcaster.hpp"
 
 #include <mongocxx/instance.hpp>
 
@@ -40,6 +41,7 @@ private:
     controllers::UserController user_controller_;
 
     TcpServer server_;
+    services::TelemetryBroadcaster telemetry_broadcaster_;
 };
 
 } // namespace http
