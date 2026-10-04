@@ -43,34 +43,16 @@ find_package(redis++ CONFIG REQUIRED)
 # openssl
 find_package(OpenSSL REQUIRED)
 
-# Main
-add_library(http_server_core
-    src/http/HttpHeaders.cpp
-    src/http/HttpParser.cpp
-    src/http/HttpRequest.cpp
-    src/http/HttpResponse.cpp
-    src/http/HttpUtils.cpp
-    src/http/Router.cpp
-    src/network/ClientConnection.cpp
-    src/network/ReadBuffer.cpp
-    src/network/TcpServer.cpp
-    src/network/Socket.cpp
-    src/network/Epoll.cpp
-    src/concurrency/ThreadPool.cpp
-    src/database/MongoPool.cpp
-    src/controllers/UserController.cpp
-    src/App.cpp
-    src/utils/EnvParser.cpp
-    src/utils/Logger.cpp
-    src/utils/JwtUtils.cpp
-    src/utils/CryptoUtils.cpp
-    src/utils/SslManager.cpp
-    src/utils/WebSocketUtils.cpp
-    src/middlewares/RateLimiter.cpp
-    src/middlewares/AuthMiddleware.cpp
-    src/repositories/UserRepository.cpp
-    src/services/TelemetryBroadcaster.cpp
-)
+# nghttp2 (HTTP/2 framing)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(NGHTTP2 REQUIRED IMPORTED_TARGET libnghttp2)
+
+# re-run automatically when adding or deleting a file in src
+file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+list(REMOVE_ITEM CORE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
+
+add_library(http_server_core ${CORE_SOURCES})
+
 target_include_directories(http_server_core PUBLIC include)
 target_link_libraries(http_server_core PUBLIC 
     nlohmann_json::nlohmann_json
@@ -80,6 +62,7 @@ target_link_libraries(http_server_core PUBLIC
     redis++::redis++_static
     OpenSSL::SSL
     OpenSSL::Crypto
+    PkgConfig::NGHTTP2
     $<IF:$<TARGET_EXISTS:mongo::mongocxx_shared>,mongo::mongocxx_shared,mongo::mongocxx_static>
     $<IF:$<TARGET_EXISTS:mongo::bsoncxx_shared>,mongo::bsoncxx_shared,mongo::bsoncxx_static>)
 
