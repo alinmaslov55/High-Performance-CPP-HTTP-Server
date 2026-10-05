@@ -10,9 +10,9 @@
 
 namespace http {
 
-ClientConnection::ClientConnection(Socket socket, SSL *ssl, const Router &router)
+ClientConnection::ClientConnection(Socket socket, SSL *ssl, const Router &router, concurrency::ThreadPool &thread_pool)
     : socket_(std::move(socket)), ssl_(ssl), handshakeComplete_(false), is_http2_(false),
-      h2_session_(nullptr), router_(router) {}
+      h2_session_(nullptr), router_(router), thread_pool_(thread_pool) {}
 
 ClientConnection::~ClientConnection() {
     if (h2_session_) {
@@ -274,8 +274,7 @@ void ClientConnection::setupHttp2Session() {
     nghttp2_submit_settings(h2_session_, NGHTTP2_FLAG_NONE, iv, 1);
 }
 
-ssize_t ClientConnection::h2_send_cb(nghttp2_session *session, const uint8_t *data, size_t length,
-                                     int flags, void *user_data) {
+ssize_t ClientConnection::h2_send_cb(nghttp2_session *session, const uint8_t *data, size_t length, int flags, void *user_data) {
     auto *conn = static_cast<ClientConnection *>(user_data);
     try {
         const int bytes_sent = SSL_write(conn->ssl_, data, length);
@@ -292,8 +291,7 @@ ssize_t ClientConnection::h2_send_cb(nghttp2_session *session, const uint8_t *da
     }
 }
 
-int ClientConnection::h2_on_begin_headers_cb(nghttp2_session *session, const nghttp2_frame *frame,
-                                             void *user_data) {
+int ClientConnection::h2_on_begin_headers_cb(nghttp2_session *session, const nghttp2_frame *frame, void *user_data) {
     auto *conn = static_cast<ClientConnection *>(user_data);
     if (frame->hd.type == NGHTTP2_HEADERS || frame->hd.type == NGHTTP2_PUSH_PROMISE) {
         conn->h2_streams_[frame->hd.stream_id] = HttpRequest();
@@ -313,18 +311,12 @@ int ClientConnection::h2_on_header_cb(nghttp2_session *session, const nghttp2_fr
         // Map the HTTP/2 string pseudo-header to your HttpMethod enum
         HttpMethod method = HttpMethod::GET; // Default
 
-        if (header_value == "POST")
-            method = HttpMethod::POST;
-        else if (header_value == "PUT")
-            method = HttpMethod::PUT;
-        else if (header_value == "DELETE")
-            method = HttpMethod::DELETE;
-        else if (header_value == "PATCH")
-            method = HttpMethod::PATCH;
-        else if (header_value == "OPTIONS")
-            method = HttpMethod::OPTIONS;
-        else if (header_value == "HEAD")
-            method = HttpMethod::HEAD;
+        if (header_value == "POST") method = HttpMethod::POST;
+        else if (header_value == "PUT") method = HttpMethod::PUT;
+        else if (header_value == "DELETE") method = HttpMethod::DELETE;
+        else if (header_value == "PATCH") method = HttpMethod::PATCH;
+        else if (header_value == "OPTIONS") method = HttpMethod::OPTIONS;
+        else if (header_value == "HEAD") method = HttpMethod::HEAD;
 
         conn->h2_streams_[frame->hd.stream_id].setMethod(method);
 
@@ -332,16 +324,14 @@ int ClientConnection::h2_on_header_cb(nghttp2_session *session, const nghttp2_fr
         conn->h2_streams_[frame->hd.stream_id].setPath(header_value);
 
     } else {
-        conn->h2_streams_[frame->hd.stream_id].setHeader(std::string(header_name),
-                                                         std::string(header_value));
+        conn->h2_streams_[frame->hd.stream_id].setHeader(std::string(header_name), std::string(header_value));
     }
 
     return 0;
 }
 
 static ssize_t h2_response_read_cb(nghttp2_session *session, int32_t stream_id, uint8_t *buf,
-                                   size_t length, uint32_t *data_flags, nghttp2_data_source *source,
-                                   void *user_data) {
+                                   size_t length, uint32_t *data_flags, nghttp2_data_source *source, void *user_data) {
     auto *response_body = static_cast<std::string *>(source->ptr);
 
     if (response_body->empty()) {
@@ -368,6 +358,8 @@ bool ClientConnection::isHttp2() const {
 }
 
 void ClientConnection::processHttp2() {
+    std::lock_guard<std::mutex> lock(h2_mutex_);
+    
     std::string_view data = readBuffer_.data();
 
     if (!data.empty()) {
@@ -384,8 +376,23 @@ void ClientConnection::processHttp2() {
     nghttp2_session_send(h2_session_);
 }
 
-int ClientConnection::h2_on_frame_recv_cb(nghttp2_session *session, const nghttp2_frame *frame,
-                                          void *user_data) {
+void ClientConnection::submitHttp2Response(int32_t stream_id, HttpResponse response) {
+    std::lock_guard<std::mutex> lock(h2_mutex_);
+    if (!h2_session_) return;
+
+    std::vector<nghttp2_nv> h2_headers;
+    std::string status_str = std::to_string(static_cast<int>(response.status()));
+    h2_headers.push_back({(uint8_t *)":status", (uint8_t *)status_str.c_str(), 7, status_str.length(), NGHTTP2_NV_FLAG_NONE});
+
+    nghttp2_data_provider data_provider;
+    data_provider.source.ptr = new std::string(response.body());
+    data_provider.read_callback = h2_response_read_cb;
+
+    nghttp2_submit_response(h2_session_, stream_id, h2_headers.data(), h2_headers.size(), &data_provider);
+    nghttp2_session_send(h2_session_);
+}
+
+int ClientConnection::h2_on_frame_recv_cb(nghttp2_session *session, const nghttp2_frame *frame, void *user_data) {
     auto *conn = static_cast<ClientConnection *>(user_data);
 
     if ((frame->hd.type == NGHTTP2_HEADERS || frame->hd.type == NGHTTP2_DATA) &&
@@ -398,20 +405,23 @@ int ClientConnection::h2_on_frame_recv_cb(nghttp2_session *session, const nghttp
 
         TcpServer::total_requests_.fetch_add(1, std::memory_order_relaxed);
 
-        HttpResponse response = conn->router_.handle(request);
+        auto shared_conn = conn->shared_from_this();
+        const Router& router_ref = conn->router_;
 
-        std::vector<nghttp2_nv> h2_headers;
+        conn->thread_pool_.enqueue([shared_conn, stream_id, async_request = std::move(request), &router_ref]() mutable {
+            try {
+                auto start = std::chrono::steady_clock::now();
+                HttpResponse response = router_ref.handle(async_request);
+                auto end = std::chrono::steady_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-        std::string status_str = std::to_string(static_cast<int>(response.status()));
-        h2_headers.push_back({(uint8_t *)":status", (uint8_t *)status_str.c_str(), 7,
-                              status_str.length(), NGHTTP2_NV_FLAG_NONE});
+                LOG_INFO("Responded [{}] to {} in {}ms (HTTP/2)", static_cast<int>(response.status()), async_request.path(), duration);
 
-        nghttp2_data_provider data_provider;
-        data_provider.source.ptr = new std::string(response.body());
-        data_provider.read_callback = h2_response_read_cb;
-
-        nghttp2_submit_response(session, stream_id, h2_headers.data(), h2_headers.size(),
-                                &data_provider);
+                shared_conn->submitHttp2Response(stream_id, std::move(response));
+            } catch (const std::exception& e) {
+                LOG_ERROR("HTTP/2 Async task failed: {}", e.what());
+            }
+        });
     }
     return 0;
 }

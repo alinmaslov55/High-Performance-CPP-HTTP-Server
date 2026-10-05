@@ -113,5 +113,7 @@ cd build && ctest --output-on-failure
 
 - Code Formatting
 ```bash
-find . \( -name "*.cpp" -o -name "*.hpp" \) -exec clang-format -i {} +
+find src/ include/ tests/ -type f \
+    \( -name "*.cpp" -o -name "*.hpp" \) \
+    -exec clang-format -i {} +
 ```

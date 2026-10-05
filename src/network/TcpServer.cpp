@@ -88,7 +88,7 @@ void TcpServer::Worker::handleNewConnection() {
         SSL_set_fd(ssl, client_fd);
 
         active_connections_[client_fd] =
-            std::make_shared<ClientConnection>(std::move(client_socket), ssl, router_);
+            std::make_shared<ClientConnection>(std::move(client_socket), ssl, router_, thread_pool_);
 
         TcpServer::active_connections_.fetch_add(1, std::memory_order_relaxed);
 

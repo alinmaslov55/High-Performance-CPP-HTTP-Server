@@ -6,6 +6,8 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <memory>
+#include <mutex>
 
 #include <nghttp2/nghttp2.h>
 #include <openssl/err.h>
@@ -16,6 +18,7 @@
 #include "http/http/Router.hpp"
 #include "http/network/ReadBuffer.hpp"
 #include "http/network/Socket.hpp"
+#include "http/concurrency/ThreadPool.hpp"
 
 namespace http {
 
@@ -34,14 +37,9 @@ struct WebSocketFrame {
     std::string payload;
 };
 
-/**
- * @brief Active session with a client
- * @todo Arrange local variables in different order for memory optimisation across all
- * files(classes)
- */
-class ClientConnection {
+class ClientConnection : public std::enable_shared_from_this<ClientConnection> {
 public:
-    explicit ClientConnection(Socket socket, SSL *ssl, const Router &router);
+    explicit ClientConnection(Socket socket, SSL *ssl, const Router &router, concurrency::ThreadPool &thread_pool);
 
     ClientConnection(const ClientConnection &) = delete;
     ClientConnection &operator=(const ClientConnection &) = delete;
@@ -52,72 +50,39 @@ public:
     ~ClientConnection();
 
     bool doHandshake(uint32_t &out_epoll_events);
-    bool isHandshakeComplete() const {
-        return handshakeComplete_;
-    }
+    bool isHandshakeComplete() const { return handshakeComplete_; }
 
-    /**
-     * @brief Reads data from socket and appends to an internal buffer
-     * @throws std::runtime_error on read error
-     * @return true if data was read successfully, flas eif connection was
-     * closed by peer
-     */
-    [[nodiscard]]
-    bool read();
-
-    /**
-     * @brief Sends a string over the socket
-     * @param data payload to be sent
-     * @throws std::runtime_error
-     */
+    [[nodiscard]] bool read();
     void send(const std::string &data);
+    [[nodiscard]] std::string_view data() const noexcept;
 
-    /**
-     * @brief Retrieves a read-only wrapper over the data from ReadBuffer
-     * @return std::string_view with the raw bytes
-     */
-    [[nodiscard]]
-    std::string_view data() const noexcept;
-
-    // HTTP Parsing
     ParseResult parseRequest(HttpRequest &request);
     void consumeParsedRequest();
 
-    // WebSocket State and Parsing
     void upgradeToWebSocket(std::string path);
-    [[nodiscard]]
-    std::string_view getWsPath() const;
-    [[nodiscard]]
-    bool isWebSocket() const;
+    [[nodiscard]] std::string_view getWsPath() const;
+    [[nodiscard]] bool isWebSocket() const;
     ParseResult parseWebSocketFrame(WebSocketFrame &out_frame);
-    void sendWebSocketMessage(const std::string &payload,
-                              WebSocketOpcode opcode = WebSocketOpcode::Text);
+    void sendWebSocketMessage(const std::string &payload, WebSocketOpcode opcode = WebSocketOpcode::Text);
 
     void updateActivity();
+    [[nodiscard]] bool isIdle(int timeoutSeconds) const;
 
-    [[nodiscard]]
-    bool isIdle(int timeoutSeconds) const;
-
-    [[nodiscard]]
-    bool isHttp2() const;
+    [[nodiscard]] bool isHttp2() const;
+    void processHttp2();
 
     /**
-     * @brief Feeds the network buffer into nghttp2 and triggers outbound frames
+     * @brief thread-safe callback entry point for background workers
      */
-    void processHttp2();
+    void submitHttp2Response(int32_t stream_id, HttpResponse response);
 
 private:
     void setupHttp2Session();
 
-    static ssize_t h2_send_cb(nghttp2_session *session, const uint8_t *data, size_t length,
-                              int flags, void *user_data);
-    static int h2_on_begin_headers_cb(nghttp2_session *session, const nghttp2_frame *frame,
-                                      void *user_data);
-    static int h2_on_header_cb(nghttp2_session *session, const nghttp2_frame *frame,
-                               const uint8_t *name, size_t namelen, const uint8_t *value,
-                               size_t valuelen, uint8_t flags, void *user_data);
-    static int h2_on_frame_recv_cb(nghttp2_session *session, const nghttp2_frame *frame,
-                                   void *user_data);
+    static ssize_t h2_send_cb(nghttp2_session *session, const uint8_t *data, size_t length, int flags, void *user_data);
+    static int h2_on_begin_headers_cb(nghttp2_session *session, const nghttp2_frame *frame, void *user_data);
+    static int h2_on_header_cb(nghttp2_session *session, const nghttp2_frame *frame, const uint8_t *name, size_t namelen, const uint8_t *value, size_t valuelen, uint8_t flags, void *user_data);
+    static int h2_on_frame_recv_cb(nghttp2_session *session, const nghttp2_frame *frame, void *user_data);
 
     Socket socket_;
     SSL *ssl_;
@@ -125,9 +90,12 @@ private:
     bool is_websocket_{false};
     std::string ws_path_;
     bool is_http2_{false};
+    
     nghttp2_session *h2_session_{nullptr};
     std::unordered_map<uint32_t, HttpRequest> h2_streams_;
     const Router &router_;
+    std::mutex h2_mutex_;
+    concurrency::ThreadPool &thread_pool_;
 
     ReadBuffer readBuffer_;
     HttpParser parser_;
