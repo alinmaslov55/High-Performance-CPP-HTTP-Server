@@ -5,7 +5,7 @@
 
 #include <vector>
 
-namespace http{
+namespace http {
 
 class Epoll {
 public:

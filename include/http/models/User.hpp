@@ -1,8 +1,8 @@
 #ifndef MODEL_USER_HPP
 #define MODEL_USER_HPP
 
-#include <string>
 #include <nlohmann/json.hpp>
+#include <string>
 
 namespace http {
 namespace models {
@@ -14,11 +14,7 @@ struct User {
     std::string role;
 
     nlohmann::json toSafeJson() const {
-        return {
-            {"_id", id},
-            {"name", name},
-            {"role", role}
-        };
+        return {{"_id", id}, {"name", name}, {"role", role}};
     }
 };
 

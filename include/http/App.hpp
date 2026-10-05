@@ -1,10 +1,10 @@
 #ifndef APP_HPP
 #define APP_HPP
 
-#include "http/network/TcpServer.hpp"
-#include "http/http/Router.hpp"
-#include "http/database/MongoPool.hpp"
 #include "http/controllers/UserController.hpp"
+#include "http/database/MongoPool.hpp"
+#include "http/http/Router.hpp"
+#include "http/network/TcpServer.hpp"
 #include "http/repositories/UserRepository.hpp"
 #include "http/services/TelemetryBroadcaster.hpp"
 
@@ -21,20 +21,21 @@ struct AppConfiguration {
 
 class App {
 public:
-    explicit App(const AppConfiguration& config);
+    explicit App(const AppConfiguration &config);
     ~App() = default;
 
-    App(const App&) = delete;
-    App& operator=(const App&) = delete;
+    App(const App &) = delete;
+    App &operator=(const App &) = delete;
 
     void run();
+
 private:
     AppConfiguration config_;
 
     mongocxx::instance mongo_instance_;
     db::MongoPool db_pool_;
     Router router_;
-    
+
     // Repositories
     repositories::UserRepository user_repo_;
     // Controller instances

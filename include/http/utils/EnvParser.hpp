@@ -8,7 +8,7 @@ namespace utils {
 
 class EnvParser {
 public:
-    static void load(const std::string& filepath = ".env");
+    static void load(const std::string &filepath = ".env");
 };
 
 } // namespace utils

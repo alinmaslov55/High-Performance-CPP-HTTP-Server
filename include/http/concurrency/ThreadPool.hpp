@@ -17,16 +17,16 @@ public:
     explicit ThreadPool(std::size_t numThreads);
     ~ThreadPool();
 
-    ThreadPool(const ThreadPool&) = delete;
-    ThreadPool& operator=(const ThreadPool&) = delete;
+    ThreadPool(const ThreadPool &) = delete;
+    ThreadPool &operator=(const ThreadPool &) = delete;
 
     void enqueue(std::function<void()> task);
 
-    
-	[[nodiscard]]
-	std::size_t getPendingTaskCount() const {
-		return pending_tasks_.load(std::memory_order_relaxed);
-	}
+    [[nodiscard]]
+    std::size_t getPendingTaskCount() const {
+        return pending_tasks_.load(std::memory_order_relaxed);
+    }
+
 private:
     static constexpr std::size_t CAPACITY = 1024;
     std::vector<std::function<void()>> ring_buffer_;

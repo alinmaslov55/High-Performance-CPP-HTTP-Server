@@ -7,90 +7,80 @@
 
 #include <string>
 #include <string_view>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 namespace http {
 
-enum class HttpMethod {
-	GET,
-	POST,
-	PUT,
-	PATCH,
-	DELETE,
-	HEAD,
-	OPTIONS,
-	CONNECT,
-	TRACE,
-	UNKNOWN
-};
+enum class HttpMethod { GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, CONNECT, TRACE, UNKNOWN };
 
 class HttpRequest {
-  public:
-	HttpRequest() = default;
+public:
+    HttpRequest() = default;
 
-	HttpRequest(HttpMethod method, std::string_view target, std::string_view version);
+    HttpRequest(HttpMethod method, std::string_view target, std::string_view version);
 
-	[[nodiscard]]
-	HttpMethod method() const noexcept;
+    [[nodiscard]]
+    HttpMethod method() const noexcept;
 
-	void setMethod(HttpMethod method);
+    void setMethod(HttpMethod method);
 
-	[[nodiscard]]
-	std::string_view target() const noexcept;
+    [[nodiscard]]
+    std::string target() const noexcept;
 
-	[[nodiscard]]
-	std::string_view version() const noexcept;
+    [[nodiscard]]
+    std::string version() const noexcept;
 
-	void addHeader(std::string name, std::string value);
+    void addHeader(std::string name, std::string value);
 
-	void setHeader(std::string name, std::string value);
+    void setHeader(std::string name, std::string value);
 
-	[[nodiscard]]
-	std::string_view header(std::string_view name) const noexcept;
+    [[nodiscard]]
+    std::string_view header(std::string_view name) const noexcept;
 
-	[[nodiscard]]
-	std::vector<std::string_view> headers(std::string_view name) const;
+    [[nodiscard]]
+    std::vector<std::string_view> headers(std::string_view name) const;
 
-	void setBody(std::string body);
+    void setBody(std::string body);
 
-	[[nodiscard]]
-	std::string_view body() const noexcept;
+    [[nodiscard]]
+    std::string_view body() const noexcept;
 
-	[[nodiscard]]
-	std::string_view path() const noexcept;
+    [[nodiscard]]
+    std::string path() const noexcept;
 
-	[[nodiscard]]
-	std::string_view query(std::string_view key) const noexcept;
+    [[nodiscard]]
+    std::string_view query(std::string_view key) const noexcept;
 
-	void setPath(std::string_view path);
-	void addQuery(std::string key, std::string value);
+    void setPath(std::string_view path);
+    void addQuery(std::string key, std::string value);
 
-	void setJson(nlohmann::json json_body);
+    void setJson(nlohmann::json json_body);
 
-	[[nodiscard]]
-	const nlohmann::json& json() const;
+    [[nodiscard]]
+    const nlohmann::json &json() const;
 
-	[[nodiscard]]
-	bool hasJson() const noexcept;
+    [[nodiscard]]
+    bool hasJson() const noexcept;
 
-	std::string param(const std::string& key) const;
-	void setParam(const std::string& key, const std::string& value);
-  private:
-	HttpMethod method_ = HttpMethod::UNKNOWN;
+    std::string param(const std::string &key) const;
+    void setParam(const std::string &key, const std::string &value);
 
-	std::string_view target_;
-	std::string_view version_;
-	std::string_view path_;
+private:
+    HttpMethod method_ = HttpMethod::UNKNOWN;
 
-	HttpHeaders headers_;
+    std::string target_;
+    std::string version_;
+    std::string path_;
 
-	std::string body_;
-	std::unordered_map<std::string, std::string> queries_;
-	std::unordered_map<std::string, std::string> path_params_;
+    HttpHeaders headers_;
 
-	nlohmann::json json_body_;
-	bool has_json_{false};
+    std::string body_;
+    std::unordered_map<std::string, std::string> queries_;
+    std::unordered_map<std::string, std::string> path_params_;
+
+    nlohmann::json json_body_;
+    bool has_json_{false};
 };
 
 } // namespace http

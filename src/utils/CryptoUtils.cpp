@@ -1,8 +1,8 @@
 #include "http/utils/CryptoUtils.hpp"
 #include "http/utils/Logger.hpp"
+#include <mutex>
 #include <sodium.h>
 #include <stdexcept>
-#include <mutex>
 
 namespace http {
 namespace utils {
@@ -18,31 +18,24 @@ static void ensureSodiumInitialized() {
     });
 }
 
-std::string CryptoUtils::hashPassword(const std::string& plaintext) {
+std::string CryptoUtils::hashPassword(const std::string &plaintext) {
     ensureSodiumInitialized();
 
     char hash[crypto_pwhash_STRBYTES];
-    
-    if (crypto_pwhash_str(
-            hash, 
-            plaintext.c_str(), 
-            plaintext.length(),
-            crypto_pwhash_OPSLIMIT_INTERACTIVE,
-            crypto_pwhash_MEMLIMIT_INTERACTIVE) != 0) {
+
+    if (crypto_pwhash_str(hash, plaintext.c_str(), plaintext.length(),
+                          crypto_pwhash_OPSLIMIT_INTERACTIVE,
+                          crypto_pwhash_MEMLIMIT_INTERACTIVE) != 0) {
         throw std::runtime_error("Out of memory while hashing password");
     }
 
     return std::string(hash);
 }
 
-bool CryptoUtils::verifyPassword(const std::string& plaintext, const std::string& hash) {
+bool CryptoUtils::verifyPassword(const std::string &plaintext, const std::string &hash) {
     ensureSodiumInitialized();
 
-    return crypto_pwhash_str_verify(
-        hash.c_str(), 
-        plaintext.c_str(), 
-        plaintext.length()
-    ) == 0;
+    return crypto_pwhash_str_verify(hash.c_str(), plaintext.c_str(), plaintext.length()) == 0;
 }
 
 } // namespace utils

@@ -9,21 +9,21 @@ namespace http {
 namespace controllers {
 class UserController {
 public:
-    explicit UserController(repositories::UserRepository & repo);
+    explicit UserController(repositories::UserRepository &repo);
 
-    void registerRoutes(Router& router);
+    void registerRoutes(Router &router);
 
 private:
-    void createUser(HttpRequest& req, HttpResponse& res);
-    void getAllUsers(HttpRequest& req, HttpResponse& res);
-    void getUserById(HttpRequest& req, HttpResponse& res);
-    void updateUser(HttpRequest& req, HttpResponse& res);
-    void deleteUser(HttpRequest& req, HttpResponse& res);
-    void loginUser(HttpRequest& req, HttpResponse& res);
+    void createUser(HttpRequest &req, HttpResponse &res);
+    void getAllUsers(HttpRequest &req, HttpResponse &res);
+    void getUserById(HttpRequest &req, HttpResponse &res);
+    void updateUser(HttpRequest &req, HttpResponse &res);
+    void deleteUser(HttpRequest &req, HttpResponse &res);
+    void loginUser(HttpRequest &req, HttpResponse &res);
 
-    bool extractJson(HttpRequest& req, HttpResponse& res, nlohmann::json& out_payload);
+    bool extractJson(HttpRequest &req, HttpResponse &res, nlohmann::json &out_payload);
 
-    repositories::UserRepository& userRepo_;
+    repositories::UserRepository &userRepo_;
 };
 } // namespace controllers
 } // namespace http

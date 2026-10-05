@@ -3,21 +3,18 @@
 
 #include "http/http/HttpRequest.hpp"
 #include "http/http/HttpResponse.hpp"
-#include <sw/redis++/redis++.h>
+#include <functional>
 #include <memory>
 #include <string>
-#include <functional>
+#include <sw/redis++/redis++.h>
 
 namespace http {
 namespace middlewares {
 
 class RateLimiter {
 public:
-    static std::function<bool(HttpRequest&, HttpResponse&)> create(
-        std::shared_ptr<sw::redis::Redis> redis_client,
-        int max_requests,
-        int window_seconds
-    );
+    static std::function<bool(HttpRequest &, HttpResponse &)>
+    create(std::shared_ptr<sw::redis::Redis> redis_client, int max_requests, int window_seconds);
 };
 
 } // namespace middlewares

@@ -4,39 +4,46 @@
 
 namespace http {
 
-HttpRequest::HttpRequest(HttpMethod method, std::string_view target,
-						 std::string_view version)
-	: method_(method), target_(target),
-	  version_(version) {}
+HttpRequest::HttpRequest(HttpMethod method, std::string_view target, std::string_view version)
+    : method_(method), target_(target), version_(version) {}
 
-HttpMethod HttpRequest::method() const noexcept { return method_; }
+HttpMethod HttpRequest::method() const noexcept {
+    return method_;
+}
 
-std::string_view HttpRequest::target() const noexcept { return target_; }
+std::string HttpRequest::target() const noexcept {
+    return target_;
+}
 
-std::string_view HttpRequest::version() const noexcept { return version_; }
+std::string HttpRequest::version() const noexcept {
+    return version_;
+}
 
 void HttpRequest::addHeader(std::string name, std::string value) {
-	headers_.add(std::move(name), std::move(value));
+    headers_.add(std::move(name), std::move(value));
 }
 
 void HttpRequest::setHeader(std::string name, std::string value) {
-	headers_.set(std::move(name), std::move(value));
+    headers_.set(std::move(name), std::move(value));
 }
 
 std::string_view HttpRequest::header(std::string_view name) const noexcept {
-	return headers_.get(name);
+    return headers_.get(name);
 }
 
-std::vector<std::string_view>
-HttpRequest::headers(std::string_view name) const {
-	return headers_.values(name);
+std::vector<std::string_view> HttpRequest::headers(std::string_view name) const {
+    return headers_.values(name);
 }
 
-void HttpRequest::setBody(std::string body) { body_ = std::move(body); }
+void HttpRequest::setBody(std::string body) {
+    body_ = std::move(body);
+}
 
-std::string_view HttpRequest::body() const noexcept { return body_; }
+std::string_view HttpRequest::body() const noexcept {
+    return body_;
+}
 
-std::string_view HttpRequest::path() const noexcept {
+std::string HttpRequest::path() const noexcept {
     return path_;
 }
 
@@ -61,7 +68,7 @@ void HttpRequest::setJson(nlohmann::json json_body) {
     has_json_ = true;
 }
 
-const nlohmann::json& HttpRequest::json() const {
+const nlohmann::json &HttpRequest::json() const {
     return json_body_;
 }
 
@@ -73,7 +80,7 @@ void HttpRequest::setMethod(HttpMethod method) {
     method_ = method;
 }
 
-std::string HttpRequest::param(const std::string& key) const {
+std::string HttpRequest::param(const std::string &key) const {
     auto it = path_params_.find(key);
     if (it != path_params_.end()) {
         return it->second;
@@ -81,7 +88,7 @@ std::string HttpRequest::param(const std::string& key) const {
     return "";
 }
 
-void HttpRequest::setParam(const std::string& key, const std::string& value) {
+void HttpRequest::setParam(const std::string &key, const std::string &value) {
     path_params_[key] = value;
 }
 

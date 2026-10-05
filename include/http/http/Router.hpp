@@ -17,9 +17,10 @@ struct WebSocketFrame;
 
 class Router {
 public:
-    using Handler = std::function<void(HttpRequest&, HttpResponse&)>;
-    using Middleware = std::function<bool(HttpRequest&, HttpResponse&)>;
-    using WsHandler = std::function<void(std::shared_ptr<ClientConnection>&, const WebSocketFrame&)>;
+    using Handler = std::function<void(HttpRequest &, HttpResponse &)>;
+    using Middleware = std::function<bool(HttpRequest &, HttpResponse &)>;
+    using WsHandler =
+        std::function<void(std::shared_ptr<ClientConnection> &, const WebSocketFrame &)>;
 
     Router() = default;
 
@@ -40,10 +41,10 @@ public:
     void head(std::string path, std::vector<Middleware> middlewares, Handler handler);
 
     [[nodiscard]]
-    HttpResponse handle(HttpRequest& request) const;
+    HttpResponse handle(HttpRequest &request) const;
 
     void ws(std::string path, WsHandler handler);
-    void handleWs(std::shared_ptr<ClientConnection>& connection, const WebSocketFrame& frame) const;
+    void handleWs(std::shared_ptr<ClientConnection> &connection, const WebSocketFrame &frame) const;
 
     void serveFiles(std::string mountPoint, std::string directory);
 

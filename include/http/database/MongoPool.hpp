@@ -17,18 +17,18 @@ constexpr auto DEFAULT_MONGO_URI = "mongodb://localhost:27017";
  */
 class MongoPool {
 public:
-    explicit MongoPool(const std::string& uri_string = DEFAULT_MONGO_URI);
+    explicit MongoPool(const std::string &uri_string = DEFAULT_MONGO_URI);
 
-    MongoPool(const MongoPool&) = delete;
-    MongoPool& operator=(const MongoPool&) = delete;
+    MongoPool(const MongoPool &) = delete;
+    MongoPool &operator=(const MongoPool &) = delete;
 
     /**
      * @brief Acquire a connection from the pool
      * @return A RAII wrapper of mongocxx::pool::entry object representing the acquired connection
      */
     mongocxx::pool::entry acquire();
-private:
 
+private:
     mongocxx::uri uri_;
     mongocxx::pool pool_;
 };

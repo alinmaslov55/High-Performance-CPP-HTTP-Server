@@ -1,22 +1,23 @@
 #include "http/utils/EnvParser.hpp"
 #include "http/utils/Logger.hpp"
 
+#include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <cstdlib>
-#include <algorithm>
 
 namespace http {
 namespace utils {
 
-static std::string trim(const std::string& str) {
+static std::string trim(const std::string &str) {
     size_t first = str.find_first_not_of(" \t\r\n");
-    if (std::string::npos == first) return "";
+    if (std::string::npos == first)
+        return "";
     size_t last = str.find_last_not_of(" \t\r\n");
     return str.substr(first, (last - first + 1));
 }
 
-void EnvParser::load(const std::string& filepath) {
+void EnvParser::load(const std::string &filepath) {
     std::ifstream file(filepath);
     if (!file.is_open()) {
         LOG_WARN("Could not open {}, Relying on system env vars", filepath);
@@ -26,7 +27,8 @@ void EnvParser::load(const std::string& filepath) {
     std::string line;
     while (std::getline(file, line)) {
         line = trim(line);
-        if (line.empty() || line[0] == '#') continue;
+        if (line.empty() || line[0] == '#')
+            continue;
 
         size_t delimiter_pos = line.find('=');
         if (delimiter_pos != std::string::npos) {

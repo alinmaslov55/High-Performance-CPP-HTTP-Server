@@ -3,18 +3,18 @@
 namespace concurrency {
 
 ThreadPool::ThreadPool(std::size_t numThreads) : ring_buffer_(CAPACITY) {
-    for(std::size_t i = 0; i < numThreads; i++){
-        workers_.emplace_back([this]{
-            while(true){
+    for (std::size_t i = 0; i < numThreads; i++) {
+        workers_.emplace_back([this] {
+            while (true) {
                 tasks_available_.acquire();
 
-                if(stop_.load(std::memory_order_acquire)){
+                if (stop_.load(std::memory_order_acquire)) {
                     return;
                 }
 
                 std::function<void()> task;
 
-                while(lock_.test_and_set(std::memory_order_acquire)){
+                while (lock_.test_and_set(std::memory_order_acquire)) {
                     std::this_thread::yield();
                 }
 
@@ -26,7 +26,7 @@ ThreadPool::ThreadPool(std::size_t numThreads) : ring_buffer_(CAPACITY) {
 
                 pending_tasks_.fetch_sub(1, std::memory_order_relaxed);
 
-                if(task){
+                if (task) {
                     task();
                 }
             }
@@ -34,25 +34,25 @@ ThreadPool::ThreadPool(std::size_t numThreads) : ring_buffer_(CAPACITY) {
     }
 }
 
-ThreadPool::~ThreadPool(){
+ThreadPool::~ThreadPool() {
     stop_.store(true, std::memory_order_release);
 
-    for(std::size_t i = 0; i < workers_.size(); ++i){
+    for (std::size_t i = 0; i < workers_.size(); ++i) {
         tasks_available_.release();
     }
 
-    for(auto& worker: workers_){
-        if(worker.joinable()){
+    for (auto &worker : workers_) {
+        if (worker.joinable()) {
             worker.join();
         }
     }
 }
 
-void ThreadPool::enqueue(std::function<void()> task){
+void ThreadPool::enqueue(std::function<void()> task) {
     pending_tasks_.fetch_add(1, std::memory_order_relaxed);
     space_available_.acquire();
 
-    while(lock_.test_and_set(std::memory_order_acquire)){
+    while (lock_.test_and_set(std::memory_order_acquire)) {
         std::this_thread::yield();
     }
 

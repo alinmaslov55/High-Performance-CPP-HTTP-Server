@@ -11,45 +11,44 @@ namespace http {
 enum class ParseResult { Complete, Incomplete, Invalid };
 
 class HttpParser {
-  public:
-	static constexpr std::size_t MAX_REQUEST_LINE = 8192;
-	static constexpr std::size_t MAX_HEADER_SIZE = 16384;
-	static constexpr std::size_t MAX_HEADERS = 100;
-	static constexpr std::size_t MAX_BODY_SIZE = 10 * 1024 * 1024;
-	static constexpr std::size_t MAX_CHUNK_LINE_SIZE = 128;
+public:
+    static constexpr std::size_t MAX_REQUEST_LINE = 8192;
+    static constexpr std::size_t MAX_HEADER_SIZE = 16384;
+    static constexpr std::size_t MAX_HEADERS = 100;
+    static constexpr std::size_t MAX_BODY_SIZE = 10 * 1024 * 1024;
+    static constexpr std::size_t MAX_CHUNK_LINE_SIZE = 128;
 
-	ParseResult parse(std::string_view data, HttpRequest &request);
+    ParseResult parse(std::string_view data, HttpRequest &request);
 
-	[[nodiscard]]
-	std::size_t consumedBytes() const noexcept;
+    [[nodiscard]]
+    std::size_t consumedBytes() const noexcept;
 
-	void reset() noexcept;
+    void reset() noexcept;
 
-  private:
-	enum class State {
-		RequestLine,
-		Headers,
-		Body,
-		ChunkSize,
-		ChunkData,
-		ChunkDataCrlf,
-		ChunkTrailer,
-		Complete,
-		Error
-	};
+private:
+    enum class State {
+        RequestLine,
+        Headers,
+        Body,
+        ChunkSize,
+        ChunkData,
+        ChunkDataCrlf,
+        ChunkTrailer,
+        Complete,
+        Error
+    };
 
-	ParseResult parseRequestLine(std::string_view data,
-								 HttpRequest &request) const;
-	ParseResult parseHeaders(std::string_view data, HttpRequest &request) const;
-	ParseResult parseBody(std::string_view data, HttpRequest &request) const;
+    ParseResult parseRequestLine(std::string_view data, HttpRequest &request) const;
+    ParseResult parseHeaders(std::string_view data, HttpRequest &request) const;
+    ParseResult parseBody(std::string_view data, HttpRequest &request) const;
 
-	State state_ = State::RequestLine;
-	std::size_t consumed_ = 0;
-	std::size_t bodySize_ = 0;
-	std::size_t chunkSize_ = 0;
-	std::size_t chunkBytesRead_ = 0;
+    State state_ = State::RequestLine;
+    std::size_t consumed_ = 0;
+    std::size_t bodySize_ = 0;
+    std::size_t chunkSize_ = 0;
+    std::size_t chunkBytesRead_ = 0;
 
-	std::string body_;
+    std::string body_;
 };
 
 } // namespace http

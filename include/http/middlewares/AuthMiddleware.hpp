@@ -10,7 +10,7 @@ namespace middlewares {
 
 class AuthMiddleware {
 public:
-    static bool requireAuth(HttpRequest& req, HttpResponse& res);
+    static bool requireAuth(HttpRequest &req, HttpResponse &res);
 };
 
 } // namespace middlewares

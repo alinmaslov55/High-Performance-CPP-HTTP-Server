@@ -8,7 +8,7 @@
 
 namespace http {
 
-enum class HttpStatus{
+enum class HttpStatus {
     SwitchingProtocols = 101,
 
     OK = 200,
@@ -34,15 +34,9 @@ public:
 
     void setStatus(HttpStatus status) noexcept;
 
-    void setHeader(
-        std::string name,
-        std::string value
-    );
+    void setHeader(std::string name, std::string value);
 
-    void addHeader(
-        std::string name,
-        std::string value
-    );
+    void addHeader(std::string name, std::string value);
 
     void setBody(std::string body);
 
@@ -50,21 +44,18 @@ public:
     HttpStatus status() const noexcept;
 
     [[nodiscard]]
-    std::string_view header(
-        std::string_view name
-    ) const noexcept;
+    std::string_view header(std::string_view name) const noexcept;
 
     [[nodiscard]]
     std::string_view body() const noexcept;
 
-    std::string reasonPhrase(
-        const HttpStatus& status
-    ) const noexcept;
+    std::string reasonPhrase(const HttpStatus &status) const noexcept;
 
     [[nodiscard]]
     std::string serialize() const;
 
-    void json(const std::string& jsonString);
+    void json(const std::string &jsonString);
+
 private:
     HttpStatus status_;
     HttpHeaders headers_;

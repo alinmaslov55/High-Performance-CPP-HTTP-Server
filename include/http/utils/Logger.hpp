@@ -1,8 +1,8 @@
 #ifndef LOGGER_HPP
 #define LOGGER_HPP
 
-#include <spdlog/spdlog.h>
 #include <memory>
+#include <spdlog/spdlog.h>
 
 namespace http {
 namespace utils {
