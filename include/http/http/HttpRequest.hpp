@@ -47,7 +47,7 @@ public:
     std::string_view body() const noexcept;
 
     [[nodiscard]]
-    std::string path() const noexcept;
+    std::string_view path() const noexcept;
 
     [[nodiscard]]
     std::string_view query(std::string_view key) const noexcept;

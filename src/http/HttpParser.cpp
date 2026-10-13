@@ -8,398 +8,386 @@
 
 namespace http {
 
-// TODO: to split current method based on the switch
+ParseResult HttpParser::fail() noexcept {
+    state_ = State::Error;
+    return ParseResult::Invalid;
+}
+
 ParseResult HttpParser::parse(std::string_view data, HttpRequest &request) {
     while (true) {
+        std::optional<ParseResult> result;
+
         switch (state_) {
-        case State::RequestLine: {
-
-            if (consumed_ > data.size()) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            const std::string_view remaining = data.substr(consumed_);
-
-            const std::size_t lineEnd = remaining.find("\r\n");
-
-            if (lineEnd == std::string_view::npos) {
-
-                if (remaining.size() > MAX_REQUEST_LINE) {
-                    state_ = State::Error;
-                    return ParseResult::Invalid;
-                }
-
-                return ParseResult::Incomplete;
-            }
-
-            if (lineEnd > MAX_REQUEST_LINE) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            const ParseResult result = parseRequestLine(remaining, request);
-
-            if (result == ParseResult::Incomplete) {
-                return ParseResult::Incomplete;
-            }
-
-            if (result == ParseResult::Invalid) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            consumed_ += lineEnd + 2;
-
-            state_ = State::Headers;
-
-            continue;
-        }
-
-        case State::Headers: {
-
-            if (consumed_ > data.size()) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            const std::string_view remaining = data.substr(consumed_);
-
-            const std::size_t headersEnd = remaining.find("\r\n\r\n");
-
-            if (headersEnd == std::string_view::npos) {
-
-                if (remaining.size() > MAX_HEADER_SIZE) {
-                    state_ = State::Error;
-                    return ParseResult::Invalid;
-                }
-
-                return ParseResult::Incomplete;
-            }
-
-            if (headersEnd > MAX_HEADER_SIZE) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            const std::string_view headers = remaining.substr(0, headersEnd + 4);
-
-            const ParseResult result = parseHeaders(headers, request);
-
-            if (result == ParseResult::Incomplete) {
-                return ParseResult::Incomplete;
-            }
-
-            if (result == ParseResult::Invalid) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            consumed_ += headersEnd + 4;
-
-            const std::string_view contentLength = request.header("Content-Length");
-
-            const std::string_view transferEncoding = request.header("Transfer-Encoding");
-
-            const bool hasContentLength = !contentLength.empty();
-
-            const bool hasTransferEncoding = !transferEncoding.empty();
-
-            if (hasContentLength && hasTransferEncoding) {
-
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            if (hasTransferEncoding) {
-                if (!utils::equalsIgnoreCase(utils::trimOws(transferEncoding), "chunked")) {
-
-                    state_ = State::Error;
-                    return ParseResult::Invalid;
-                }
-
-                body_.clear();
-
-                chunkSize_ = 0;
-                chunkBytesRead_ = 0;
-
-                state_ = State::ChunkSize;
-
-                continue;
-            }
-
-            if (!hasContentLength) {
-
-                bodySize_ = 0;
-                request.setBody("");
-                state_ = State::Complete;
-
-                return ParseResult::Complete;
-            }
-
-            bodySize_ = 0;
-
-            if (!utils::parseContentLength(contentLength, bodySize_)) {
-
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            if (bodySize_ > MAX_BODY_SIZE) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            if (bodySize_ == 0) {
-                request.setBody("");
-
-                state_ = State::Complete;
-
-                return ParseResult::Complete;
-            }
-
-            state_ = State::Body;
-
-            continue;
-        }
-
-        case State::Body: {
-            if (consumed_ > data.size()) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            const std::size_t available = data.size() - consumed_;
-
-            if (available < bodySize_) {
-                return ParseResult::Incomplete;
-            }
-
-            request.setBody(std::string(data.substr(consumed_, bodySize_)));
-
-            consumed_ += bodySize_;
-
-            state_ = State::Complete;
-
-            return ParseResult::Complete;
-        }
-
-        case State::ChunkSize: {
-
-            if (consumed_ > data.size()) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            const std::string_view remaining = data.substr(consumed_);
-
-            const std::size_t lineEnd = remaining.find("\r\n");
-
-            if (lineEnd == std::string_view::npos) {
-
-                if (remaining.size() > MAX_CHUNK_LINE_SIZE) {
-
-                    state_ = State::Error;
-                    return ParseResult::Invalid;
-                }
-
-                return ParseResult::Incomplete;
-            }
-
-            if (lineEnd > MAX_CHUNK_LINE_SIZE) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            std::string_view line = remaining.substr(0, lineEnd);
-
-            const std::size_t semicolon = line.find(';');
-
-            if (semicolon != std::string_view::npos) {
-                line = line.substr(0, semicolon);
-            }
-
-            line = utils::trimOws(line);
-
-            if (!utils::parseChunkSize(line, chunkSize_)) {
-
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            if (chunkSize_ > MAX_BODY_SIZE || body_.size() > MAX_BODY_SIZE - chunkSize_) {
-
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            consumed_ += lineEnd + 2;
-
-            chunkBytesRead_ = 0;
-
-            if (chunkSize_ == 0) {
-
-                state_ = State::ChunkTrailer;
-
-            } else {
-
-                state_ = State::ChunkData;
-            }
-
-            continue;
-        }
-
-        case State::ChunkData: {
-
-            if (consumed_ > data.size()) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            const std::size_t available = data.size() - consumed_;
-
-            const std::size_t remainingChunkBytes = chunkSize_ - chunkBytesRead_;
-
-            const std::size_t bytesToCopy = std::min(available, remainingChunkBytes);
-
-            if (bytesToCopy > 0) {
-
-                body_.append(data.data() + consumed_, bytesToCopy);
-
-                consumed_ += bytesToCopy;
-                chunkBytesRead_ += bytesToCopy;
-            }
-
-            if (chunkBytesRead_ < chunkSize_) {
-                return ParseResult::Incomplete;
-            }
-
-            state_ = State::ChunkDataCrlf;
-
-            continue;
-        }
-        case State::ChunkDataCrlf: {
-
-            if (consumed_ > data.size()) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            const std::size_t available = data.size() - consumed_;
-
-            if (available < 2) {
-                return ParseResult::Incomplete;
-            }
-
-            if (data[consumed_] != '\r' || data[consumed_ + 1] != '\n') {
-
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            consumed_ += 2;
-
-            state_ = State::ChunkSize;
-
-            continue;
-        }
-
-        case State::ChunkTrailer: {
-
-            if (consumed_ > data.size()) {
-                state_ = State::Error;
-                return ParseResult::Invalid;
-            }
-
-            const std::string_view remaining = data.substr(consumed_);
-
-            if (remaining.size() >= 2 && remaining[0] == '\r' && remaining[1] == '\n') {
-
-                consumed_ += 2;
-
-                request.setBody(std::move(body_));
-
-                state_ = State::Complete;
-
-                return ParseResult::Complete;
-            }
-
-            const std::size_t trailerEnd = remaining.find("\r\n\r\n");
-
-            if (trailerEnd == std::string_view::npos) {
-
-                if (remaining.size() > MAX_HEADER_SIZE) {
-
-                    state_ = State::Error;
-                    return ParseResult::Invalid;
-                }
-
-                return ParseResult::Incomplete;
-            }
-
-            const std::string_view trailers = remaining.substr(0, trailerEnd + 2);
-
-            std::size_t position = 0;
-            std::size_t trailerCount = 0;
-
-            while (position < trailers.size()) {
-                const std::size_t lineEnd = trailers.find("\r\n", position);
-                if (lineEnd == std::string_view::npos) {
-                    state_ = State::Error;
-                    return ParseResult::Invalid;
-                }
-
-                if (lineEnd == position) {
-                    break;
-                }
-
-                const std::string_view line = trailers.substr(position, lineEnd - position);
-
-                const std::size_t colon = line.find(':');
-
-                if (colon == std::string_view::npos) {
-                    state_ = State::Error;
-                    return ParseResult::Invalid;
-                }
-
-                const std::string_view name = line.substr(0, colon);
-
-                const std::string_view value = utils::trimOws(line.substr(colon + 1));
-
-                if (!utils::isValidHeaderName(name)) {
-                    state_ = State::Error;
-                    return ParseResult::Invalid;
-                }
-
-                if (!utils::isValidHeaderValue(value)) {
-                    state_ = State::Error;
-                    return ParseResult::Invalid;
-                }
-
-                ++trailerCount;
-
-                if (trailerCount > MAX_HEADERS) {
-                    state_ = State::Error;
-                    return ParseResult::Invalid;
-                }
-
-                position = lineEnd + 2;
-            }
-
-            consumed_ += trailerEnd + 4;
-
-            request.setBody(std::move(body_));
-
-            state_ = State::Complete;
-
-            return ParseResult::Complete;
-        }
+        case State::RequestLine:
+            result = handleRequestLine(data, request);
+            break;
+        case State::Headers:
+            result = handleHeaders(data, request);
+            break;
+        case State::Body:
+            result = handleBody(data, request);
+            break;
+        case State::ChunkSize:
+            result = handleChunkSize(data);
+            break;
+        case State::ChunkData:
+            result = handleChunkData(data);
+            break;
+        case State::ChunkDataCrlf:
+            result = handleChunkDataCrlf(data);
+            break;
+        case State::ChunkTrailer:
+            result = handleChunkTrailer(data, request);
+            break;
         case State::Complete:
             return ParseResult::Complete;
         case State::Error:
             return ParseResult::Invalid;
         }
+
+        // std::nullopt means the state advanced and parsing should continue.
+        if (result) {
+            return *result;
+        }
     }
+}
+
+std::optional<ParseResult> HttpParser::handleRequestLine(std::string_view data,
+                                                         HttpRequest &request) {
+    if (consumed_ > data.size()) {
+        return fail();
+    }
+
+    const std::string_view remaining = data.substr(consumed_);
+
+    const std::size_t lineEnd = remaining.find("\r\n");
+
+    if (lineEnd == std::string_view::npos) {
+
+        if (remaining.size() > MAX_REQUEST_LINE) {
+            return fail();
+        }
+
+        return ParseResult::Incomplete;
+    }
+
+    if (lineEnd > MAX_REQUEST_LINE) {
+        return fail();
+    }
+
+    const ParseResult result = parseRequestLine(remaining, request);
+
+    if (result == ParseResult::Incomplete) {
+        return ParseResult::Incomplete;
+    }
+
+    if (result == ParseResult::Invalid) {
+        return fail();
+    }
+
+    consumed_ += lineEnd + 2;
+
+    state_ = State::Headers;
+
+    return std::nullopt;
+}
+
+std::optional<ParseResult> HttpParser::handleHeaders(std::string_view data,
+                                                     HttpRequest &request) {
+    if (consumed_ > data.size()) {
+        return fail();
+    }
+
+    const std::string_view remaining = data.substr(consumed_);
+
+    const std::size_t headersEnd = remaining.find("\r\n\r\n");
+
+    if (headersEnd == std::string_view::npos) {
+
+        if (remaining.size() > MAX_HEADER_SIZE) {
+            return fail();
+        }
+
+        return ParseResult::Incomplete;
+    }
+
+    if (headersEnd > MAX_HEADER_SIZE) {
+        return fail();
+    }
+
+    const std::string_view headers = remaining.substr(0, headersEnd + 4);
+
+    const ParseResult result = parseHeaders(headers, request);
+
+    if (result == ParseResult::Incomplete) {
+        return ParseResult::Incomplete;
+    }
+
+    if (result == ParseResult::Invalid) {
+        return fail();
+    }
+
+    consumed_ += headersEnd + 4;
+
+    const std::string_view contentLength = request.header("Content-Length");
+
+    const std::string_view transferEncoding = request.header("Transfer-Encoding");
+
+    const bool hasContentLength = !contentLength.empty();
+
+    const bool hasTransferEncoding = !transferEncoding.empty();
+
+    if (hasContentLength && hasTransferEncoding) {
+        return fail();
+    }
+
+    if (hasTransferEncoding) {
+        if (!utils::equalsIgnoreCase(utils::trimOws(transferEncoding), "chunked")) {
+            return fail();
+        }
+
+        body_.clear();
+
+        chunkSize_ = 0;
+        chunkBytesRead_ = 0;
+
+        state_ = State::ChunkSize;
+
+        return std::nullopt;
+    }
+
+    if (!hasContentLength) {
+
+        bodySize_ = 0;
+        request.setBody("");
+        state_ = State::Complete;
+
+        return ParseResult::Complete;
+    }
+
+    bodySize_ = 0;
+
+    if (!utils::parseContentLength(contentLength, bodySize_)) {
+        return fail();
+    }
+
+    if (bodySize_ > MAX_BODY_SIZE) {
+        return fail();
+    }
+
+    if (bodySize_ == 0) {
+        request.setBody("");
+
+        state_ = State::Complete;
+
+        return ParseResult::Complete;
+    }
+
+    state_ = State::Body;
+
+    return std::nullopt;
+}
+
+std::optional<ParseResult> HttpParser::handleBody(std::string_view data, HttpRequest &request) {
+    if (consumed_ > data.size()) {
+        return fail();
+    }
+
+    const std::size_t available = data.size() - consumed_;
+
+    if (available < bodySize_) {
+        return ParseResult::Incomplete;
+    }
+
+    request.setBody(std::string(data.substr(consumed_, bodySize_)));
+
+    consumed_ += bodySize_;
+
+    state_ = State::Complete;
+
+    return ParseResult::Complete;
+}
+
+std::optional<ParseResult> HttpParser::handleChunkSize(std::string_view data) {
+    if (consumed_ > data.size()) {
+        return fail();
+    }
+
+    const std::string_view remaining = data.substr(consumed_);
+
+    const std::size_t lineEnd = remaining.find("\r\n");
+
+    if (lineEnd == std::string_view::npos) {
+
+        if (remaining.size() > MAX_CHUNK_LINE_SIZE) {
+            return fail();
+        }
+
+        return ParseResult::Incomplete;
+    }
+
+    if (lineEnd > MAX_CHUNK_LINE_SIZE) {
+        return fail();
+    }
+
+    std::string_view line = remaining.substr(0, lineEnd);
+
+    const std::size_t semicolon = line.find(';');
+
+    if (semicolon != std::string_view::npos) {
+        line = line.substr(0, semicolon);
+    }
+
+    line = utils::trimOws(line);
+
+    if (!utils::parseChunkSize(line, chunkSize_)) {
+        return fail();
+    }
+
+    if (chunkSize_ > MAX_BODY_SIZE || body_.size() > MAX_BODY_SIZE - chunkSize_) {
+        return fail();
+    }
+
+    consumed_ += lineEnd + 2;
+
+    chunkBytesRead_ = 0;
+
+    state_ = (chunkSize_ == 0) ? State::ChunkTrailer : State::ChunkData;
+
+    return std::nullopt;
+}
+
+std::optional<ParseResult> HttpParser::handleChunkData(std::string_view data) {
+    if (consumed_ > data.size()) {
+        return fail();
+    }
+
+    const std::size_t available = data.size() - consumed_;
+
+    const std::size_t remainingChunkBytes = chunkSize_ - chunkBytesRead_;
+
+    const std::size_t bytesToCopy = std::min(available, remainingChunkBytes);
+
+    if (bytesToCopy > 0) {
+
+        body_.append(data.data() + consumed_, bytesToCopy);
+
+        consumed_ += bytesToCopy;
+        chunkBytesRead_ += bytesToCopy;
+    }
+
+    if (chunkBytesRead_ < chunkSize_) {
+        return ParseResult::Incomplete;
+    }
+
+    state_ = State::ChunkDataCrlf;
+
+    return std::nullopt;
+}
+
+std::optional<ParseResult> HttpParser::handleChunkDataCrlf(std::string_view data) {
+    if (consumed_ > data.size()) {
+        return fail();
+    }
+
+    const std::size_t available = data.size() - consumed_;
+
+    if (available < 2) {
+        return ParseResult::Incomplete;
+    }
+
+    if (data[consumed_] != '\r' || data[consumed_ + 1] != '\n') {
+        return fail();
+    }
+
+    consumed_ += 2;
+
+    state_ = State::ChunkSize;
+
+    return std::nullopt;
+}
+
+std::optional<ParseResult> HttpParser::handleChunkTrailer(std::string_view data,
+                                                          HttpRequest &request) {
+    if (consumed_ > data.size()) {
+        return fail();
+    }
+
+    const std::string_view remaining = data.substr(consumed_);
+
+    if (remaining.size() >= 2 && remaining[0] == '\r' && remaining[1] == '\n') {
+
+        consumed_ += 2;
+
+        request.setBody(std::move(body_));
+
+        state_ = State::Complete;
+
+        return ParseResult::Complete;
+    }
+
+    const std::size_t trailerEnd = remaining.find("\r\n\r\n");
+
+    if (trailerEnd == std::string_view::npos) {
+
+        if (remaining.size() > MAX_HEADER_SIZE) {
+            return fail();
+        }
+
+        return ParseResult::Incomplete;
+    }
+
+    const std::string_view trailers = remaining.substr(0, trailerEnd + 2);
+
+    std::size_t position = 0;
+    std::size_t trailerCount = 0;
+
+    while (position < trailers.size()) {
+        const std::size_t lineEnd = trailers.find("\r\n", position);
+        if (lineEnd == std::string_view::npos) {
+            return fail();
+        }
+
+        if (lineEnd == position) {
+            break;
+        }
+
+        const std::string_view line = trailers.substr(position, lineEnd - position);
+
+        const std::size_t colon = line.find(':');
+
+        if (colon == std::string_view::npos) {
+            return fail();
+        }
+
+        const std::string_view name = line.substr(0, colon);
+
+        const std::string_view value = utils::trimOws(line.substr(colon + 1));
+
+        if (!utils::isValidHeaderName(name)) {
+            return fail();
+        }
+
+        if (!utils::isValidHeaderValue(value)) {
+            return fail();
+        }
+
+        ++trailerCount;
+
+        if (trailerCount > MAX_HEADERS) {
+            return fail();
+        }
+
+        position = lineEnd + 2;
+    }
+
+    consumed_ += trailerEnd + 4;
+
+    request.setBody(std::move(body_));
+
+    state_ = State::Complete;
+
+    return ParseResult::Complete;
 }
 
 ParseResult HttpParser::parseRequestLine(std::string_view data, HttpRequest &request) const {

@@ -43,7 +43,7 @@ std::string_view HttpRequest::body() const noexcept {
     return body_;
 }
 
-std::string HttpRequest::path() const noexcept {
+std::string_view HttpRequest::path() const noexcept {
     return path_;
 }
 

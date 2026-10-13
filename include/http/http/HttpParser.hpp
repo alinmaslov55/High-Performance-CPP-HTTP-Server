@@ -2,6 +2,8 @@
 #define HTTP_PARSER_HPP
 
 #include <cstddef>
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include <http/http/HttpRequest.hpp>
@@ -37,6 +39,16 @@ private:
         Complete,
         Error
     };
+
+    std::optional<ParseResult> handleRequestLine(std::string_view data, HttpRequest &request);
+    std::optional<ParseResult> handleHeaders(std::string_view data, HttpRequest &request);
+    std::optional<ParseResult> handleBody(std::string_view data, HttpRequest &request);
+    std::optional<ParseResult> handleChunkSize(std::string_view data);
+    std::optional<ParseResult> handleChunkData(std::string_view data);
+    std::optional<ParseResult> handleChunkDataCrlf(std::string_view data);
+    std::optional<ParseResult> handleChunkTrailer(std::string_view data, HttpRequest &request);
+
+    ParseResult fail() noexcept;
 
     ParseResult parseRequestLine(std::string_view data, HttpRequest &request) const;
     ParseResult parseHeaders(std::string_view data, HttpRequest &request) const;

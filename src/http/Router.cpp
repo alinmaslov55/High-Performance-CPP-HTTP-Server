@@ -198,6 +198,11 @@ void Router::serveFiles(std::string mountPoint, std::string directory) {
 
     Handler fileHandler = [mountPoint, directory](HttpRequest &req, HttpResponse &res) {
         std::string_view reqPath = req.path();
+        if (reqPath.size() < mountPoint.size()) {
+            res.setStatus(HttpStatus::NotFound);
+            res.setBody("404 File Not Found");
+            return;
+        }
         std::string relativePath = std::string(reqPath.substr(mountPoint.size()));
 
         if (relativePath.empty() || relativePath == "/") {
